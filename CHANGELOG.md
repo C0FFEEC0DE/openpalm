@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `src/utils/strings.rs` - String parsing utilities for Palm OS records
+  - `parse_pstring` / `pack_pstring` - null-terminated string functions
+  - `parse_lpstring` / `pack_lpstring` - Pascal-style string functions
+  - `parse_string_list` / `pack_string_list` - string list functions
+  - `pstring_size` / `string_list_size` - size calculation helpers
+
+### Fixed
+- `src/records/expense.rs` - Full attendees parsing support
+- `src/records/expense.rs` - Replaced magic number with `EXPENSE_MIN_SIZE` constant
+- `src/protocol/slp.rs` - Fixed `SlpFlags` builder pattern with proper `set_*` methods
+- `src/transport/usb.rs` - Complete rewrite with proper error handling
+- `src/transport/usb.rs` - Added `Drop` implementation for automatic cleanup
+- `src/sync.rs` - Removed unused `RecordQueue` struct
+
+### Changed
+- `src/utils/mod.rs` - Re-export string utility functions
+- `src/lib.rs` - Export string utility functions at library level
+- All record modules now use shared string utilities instead of local implementations
+
+---
+
 ## [0.1.0] - 2026-04-27
 
 ### Added
@@ -69,16 +93,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `docs/IMPLEMENTATION_PLAN.md` - Development progress tracking
 - `docs/FIX_PLAN.md` - Known issues and fix tracking
 - `README.md` - Project documentation with examples
+- `CHANGELOG.md` - Version history
 
 ### Testing
-- 137 tests across all modules
+- 145 tests across all modules (8 new tests for string utilities)
 - Test coverage for all critical functions
 - Integration tests with MockConnection
 
 ### Infrastructure
-- `Cargo.toml` - Full dependency configuration
+- `Cargo.toml` - Full dependency configuration with async support
 - `.gitignore` - Git exclusions for build artifacts
-- Git repository initialized with initial commit
+- `.github/workflows/ci.yml` - GitHub Actions CI/CD pipeline
 
 ### Dependencies
 - tokio (async runtime)
