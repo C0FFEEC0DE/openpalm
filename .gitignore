@@ -1,0 +1,11 @@
+# Build artifacts
+target/
+*.pdb
+
+# Rust
+Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
