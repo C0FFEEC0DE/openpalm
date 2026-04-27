@@ -55,21 +55,94 @@ impl SlpPacketType {
 pub struct SlpFlags(u8);
 
 impl SlpFlags {
+    /// Create new flags with default values
+    pub fn new() -> Self {
+        Self(0)
+    }
+    
+    /// Create flags from raw byte value
+    pub fn from_u8(val: u8) -> Self {
+        Self(val)
+    }
+    
+    /// Get raw byte value
+    pub fn value(&self) -> u8 {
+        self.0
+    }
+    
+    /// Check if SLIP mode is enabled
     pub fn slip_mode(&self) -> bool { (self.0 & SLP_FLAG_SLIP_MODE) != 0 }
+    
+    /// Check if compression is enabled
     pub fn compressed(&self) -> bool { (self.0 & SLP_FLAG_COMPRESSED) != 0 }
+    
+    /// Check if encryption is enabled
     pub fn encrypted(&self) -> bool { (self.0 & SLP_FLAG_ENCRYPTED) != 0 }
+    
+    /// Check if checksum is enabled
     pub fn checksum(&self) -> bool { (self.0 & SLP_FLAG_CHECKSUM) != 0 }
     
-    pub fn with_slip_mode(mut self, v: bool) -> Self { 
-        if v { self.0 |= SLP_FLAG_SLIP_MODE } else { self.0 &= !SLP_FLAG_SLIP_MODE }; 
+    /// Set SLIP mode flag
+    pub fn set_slip_mode(&mut self, enabled: bool) -> &mut Self {
+        if enabled { 
+            self.0 |= SLP_FLAG_SLIP_MODE; 
+        } else { 
+            self.0 &= !SLP_FLAG_SLIP_MODE; 
+        }
+        self
+    }
+    
+    /// Set compressed flag
+    pub fn set_compressed(&mut self, enabled: bool) -> &mut Self {
+        if enabled { 
+            self.0 |= SLP_FLAG_COMPRESSED; 
+        } else { 
+            self.0 &= !SLP_FLAG_COMPRESSED; 
+        }
+        self
+    }
+    
+    /// Set encrypted flag
+    pub fn set_encrypted(&mut self, enabled: bool) -> &mut Self {
+        if enabled { 
+            self.0 |= SLP_FLAG_ENCRYPTED; 
+        } else { 
+            self.0 &= !SLP_FLAG_ENCRYPTED; 
+        }
+        self
+    }
+    
+    /// Set checksum flag
+    pub fn set_checksum(&mut self, enabled: bool) -> &mut Self {
+        if enabled { 
+            self.0 |= SLP_FLAG_CHECKSUM; 
+        } else { 
+            self.0 &= !SLP_FLAG_CHECKSUM; 
+        }
+        self
+    }
+    
+    /// Enable SLIP mode (builder pattern)
+    pub fn with_slip_mode(mut self) -> Self { 
+        self.0 |= SLP_FLAG_SLIP_MODE; 
         self 
     }
-    pub fn with_compressed(mut self, v: bool) -> Self { 
-        if v { self.0 |= SLP_FLAG_COMPRESSED } else { self.0 &= !SLP_FLAG_COMPRESSED }; 
+    
+    /// Enable compression (builder pattern)
+    pub fn with_compressed(mut self) -> Self { 
+        self.0 |= SLP_FLAG_COMPRESSED; 
         self 
     }
-    pub fn with_checksum(mut self, v: bool) -> Self { 
-        if v { self.0 |= SLP_FLAG_CHECKSUM } else { self.0 &= !SLP_FLAG_CHECKSUM }; 
+    
+    /// Enable encryption (builder pattern)
+    pub fn with_encrypted(mut self) -> Self { 
+        self.0 |= SLP_FLAG_ENCRYPTED; 
+        self 
+    }
+    
+    /// Enable checksum (builder pattern)
+    pub fn with_checksum(mut self) -> Self { 
+        self.0 |= SLP_FLAG_CHECKSUM; 
         self 
     }
 }

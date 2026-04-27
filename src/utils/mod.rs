@@ -5,6 +5,7 @@
 mod md5;
 mod debug;
 mod sys;
+mod strings;
 
 pub use md5::{md5, md5sum, Md5Hash};
 pub use debug::{hex_dump, dump_packet, DebugLevel, Logger};
@@ -21,6 +22,14 @@ pub use sys::{
     is_big_endian,
     host_byte_order,
     SystemInfo,
+};
+
+// Re-export string utilities
+pub use strings::{
+    parse_pstring, pack_pstring,
+    parse_lpstring, pack_lpstring,
+    parse_string_list, pack_string_list,
+    pstring_size, string_list_size,
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

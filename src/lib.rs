@@ -66,6 +66,11 @@ pub use utils::{
     timeout_to_duration, timeout_expired, system_time_to_timeout,
     get_pilot_rate, pilot_rate_env,
     DebugLevel, Logger,
+    // String utilities
+    parse_pstring, pack_pstring,
+    parse_lpstring, pack_lpstring,
+    parse_string_list, pack_string_list,
+    pstring_size, string_list_size,
 };
 
 /// Library version

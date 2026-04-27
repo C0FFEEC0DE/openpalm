@@ -4,6 +4,14 @@
 
 use crate::error::{PilotError, Result};
 use crate::types::{FourCharCode, PalmDateTime};
+use crate::utils::{
+    parse_pstring, pack_pstring,
+    parse_string_list, pack_string_list,
+    string_list_size,
+};
+
+/// Minimum size for expense record parsing
+const EXPENSE_MIN_SIZE: usize = 28;
 
 /// Expense record
 #[derive(Debug, Clone)]
@@ -142,7 +150,7 @@ pub struct CurrencyInfo {
 impl ExpenseRecord {
     /// Parse from raw bytes
     pub fn parse(data: &[u8]) -> Result<Self> {
-        if data.len() < 28 {
+        if data.len() < EXPENSE_MIN_SIZE {
             return Err(PilotError::InvalidData("Expense record too short".into()));
         }
 
@@ -192,17 +200,26 @@ impl ExpenseRecord {
         let billable = (data[offset] & 0x01) != 0;
         offset += 1;
 
-        // Parse strings
-        let (vendor, new_offset) = Self::parse_string(data, offset)?;
+        // Parse strings using utility functions
+        let (vendor, new_offset) = parse_pstring(data, offset)?;
         offset = new_offset;
 
-        let (description, new_offset) = Self::parse_string(data, offset)?;
+        let (description, new_offset) = parse_pstring(data, offset)?;
         offset = new_offset;
 
-        let (city, new_offset) = Self::parse_string(data, offset)?;
+        let (city, new_offset) = parse_pstring(data, offset)?;
         offset = new_offset;
 
-        let (note, _) = Self::parse_string(data, offset)?;
+        // Parse attendees list (remaining strings until double null)
+        let attendees = parse_string_list(data, offset, 20)?;
+
+        // Parse note (search for it after attendees)
+        let note_offset = offset + string_list_size(&attendees);
+        let (note, _) = if note_offset < data.len() {
+            parse_pstring(data, note_offset)?
+        } else {
+            (String::new(), note_offset)
+        };
 
         Ok(Self {
             id: 0, // Set by caller
@@ -216,7 +233,7 @@ impl ExpenseRecord {
             vendor,
             description,
             city,
-            attendees: Vec::new(),
+            attendees,
             note,
             payment_type,
             billable,
@@ -253,31 +270,18 @@ impl ExpenseRecord {
         // Billable flag
         data.push(if self.billable { 0x01 } else { 0x00 });
 
-        // Strings
-        data.extend_from_slice(&Self::pack_string(&self.vendor));
-        data.extend_from_slice(&Self::pack_string(&self.description));
-        data.extend_from_slice(&Self::pack_string(&self.city));
-        data.extend_from_slice(&Self::pack_string(&self.note));
+        // Strings using utility functions
+        data.extend_from_slice(&pack_pstring(&self.vendor));
+        data.extend_from_slice(&pack_pstring(&self.description));
+        data.extend_from_slice(&pack_pstring(&self.city));
+        
+        // Attendees list (double-null terminated)
+        data.extend_from_slice(&pack_string_list(&self.attendees));
+        
+        // Note
+        data.extend_from_slice(&pack_pstring(&self.note));
 
         data
-    }
-
-    /// Parse null-terminated string
-    fn parse_string(data: &[u8], offset: usize) -> Result<(String, usize)> {
-        let mut end = offset;
-        while end < data.len() && data[end] != 0 {
-            end += 1;
-        }
-
-        let s = String::from_utf8_lossy(&data[offset..end]).to_string();
-        Ok((s, end + 1))
-    }
-
-    /// Pack string as null-terminated
-    fn pack_string(s: &str) -> Vec<u8> {
-        let mut bytes = s.as_bytes().to_vec();
-        bytes.push(0);
-        bytes
     }
 }
 

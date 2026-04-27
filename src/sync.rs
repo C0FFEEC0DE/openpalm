@@ -343,42 +343,8 @@ impl Default for SyncSession {
     }
 }
 
-/// Record queue for sync processing
-pub struct RecordQueue {
-    count: usize,
-}
-
 /// Sync strategy alias for SyncDirection
 pub type SyncStrategy = SyncDirection;
-
-impl RecordQueue {
-    /// Create new queue
-    pub fn new() -> Self {
-        Self { count: 0 }
-    }
-    
-    /// Add record to queue
-    pub fn add(&mut self, record: SyncRecord) {
-        self.count += 1;
-        let _ = record;
-    }
-    
-    /// Get queue length
-    pub fn len(&self) -> usize {
-        self.count
-    }
-    
-    /// Check if empty
-    pub fn is_empty(&self) -> bool {
-        self.count == 0
-    }
-}
-
-impl Default for RecordQueue {
-    fn default() -> Self {
-        Self::new()
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -407,22 +373,5 @@ mod tests {
         
         session.update_stats(SyncAction::Add);
         assert_eq!(session.stats().added, 1);
-    }
-
-    #[test]
-    fn test_record_queue() {
-        let mut queue = RecordQueue::new();
-        assert!(queue.is_empty());
-        
-        queue.add(SyncRecord {
-            id: 1,
-            category: 0,
-            attributes: 0,
-            data: vec![1, 2, 3],
-            mod_num: 0,
-        });
-        
-        assert_eq!(queue.len(), 1);
-        assert!(!queue.is_empty());
     }
 }
