@@ -179,7 +179,7 @@ impl Serial {
 }
 
 impl Read for Serial {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+    fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
         #[cfg(feature = "serial")]
         {
             if let Some(ref mut port) = self.port {
@@ -203,7 +203,7 @@ impl Read for Serial {
 }
 
 impl Write for Serial {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
         #[cfg(feature = "serial")]
         {
             if let Some(ref mut port) = self.port {

@@ -4,7 +4,6 @@
 //! the Palm serial/USB connection.
 
 use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, PiBuffer};
 
 /// NET protocol constants
 pub mod constants {

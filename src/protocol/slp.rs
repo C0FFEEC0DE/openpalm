@@ -4,7 +4,6 @@
 //! It provides reliable byte-stream communication over serial/USB connections.
 
 use crate::error::{PilotError, Result};
-use std::time::Duration;
 use std::io::{Read, Write};
 
 // SLP Constants
@@ -358,8 +357,6 @@ impl<S: Read + Write + Send> SlpConnection<S> {
     
     /// Connect and perform handshake
     pub fn connect(&mut self) -> Result<()> {
-        use std::io::Write;
-        
         let stream = self.stream.as_mut()
             .ok_or(PilotError::SockDisconnected)?;
         
@@ -403,8 +400,6 @@ impl<S: Read + Write + Send> SlpConnection<S> {
     /// Disconnect
     pub fn disconnect(&mut self) -> Result<()> {
         if self.state == SlpState::Connected {
-            use std::io::Write;
-            
             if let Some(ref mut stream) = self.stream {
                 // Send reset
                 let reset = SlpPacket::reset();
@@ -419,8 +414,6 @@ impl<S: Read + Write + Send> SlpConnection<S> {
     
     /// Receive a packet from stream
     fn receive_packet(&mut self) -> Result<SlpPacket> {
-        use std::io::Read;
-        
         let stream = self.stream.as_mut().ok_or(PilotError::SockDisconnected)?;
         let mut start_found = false;
         let mut buffer = Vec::new();
@@ -450,8 +443,6 @@ impl<S: Read + Write + Send> SlpConnection<S> {
     
     /// Send data with reliable delivery
     pub fn send(&mut self, data: &[u8]) -> Result<()> {
-        use std::io::Write;
-        
         loop {
             let stream = self.stream.as_mut()
                 .ok_or(PilotError::SockDisconnected)?;

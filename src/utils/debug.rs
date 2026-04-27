@@ -2,7 +2,6 @@
 //!
 //! This module provides debugging and logging utilities.
 
-use std::fmt;
 
 /// Debug level
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

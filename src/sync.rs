@@ -3,8 +3,7 @@
 //! This module implements the synchronization logic for Palm OS devices.
 //! Based on pilot-link's libpisync.
 
-use crate::error::{PilotError, Result};
-use crate::database::{Database, DatabaseHandle, Record};
+use crate::database::Record;
 use std::collections::HashMap;
 
 /// Sync direction

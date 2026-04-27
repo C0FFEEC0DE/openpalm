@@ -5,9 +5,8 @@
 
 use crate::error::{PilotError, Result};
 use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime};
-use crate::database::{DatabaseHandle, DatabaseInfo, Record, RecordId};
+use crate::database::{DatabaseInfo, Record};
 use crate::types::CardNo;
-use crate::types::buffer::PiBuffer;
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
 use crate::protocol::socket::TransportConnection;

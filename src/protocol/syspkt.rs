@@ -3,7 +3,6 @@
 //! This module implements system packet handling for the Palm protocol stack.
 
 use crate::error::{PilotError, Result};
-use crate::types::PiBuffer;
 
 /// System packet types
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -195,7 +195,7 @@ impl PilotSocket {
     }
     
     /// Create a stream socket for serial
-    pub fn serial(port: &str) -> Self {
+    pub fn serial(_port: &str) -> Self {
         let mut socket = Self::new(ProtocolFamily::Serial, SocketType::Stream);
         #[cfg(feature = "serial")]
         {

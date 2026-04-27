@@ -5,7 +5,6 @@
 
 use crate::error::{PilotError, Result};
 use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime, OpenMode};
-use crate::types::buffer::PiBuffer;
 
 /// Database handle (returned by open operations)
 pub type DatabaseHandle = u8;

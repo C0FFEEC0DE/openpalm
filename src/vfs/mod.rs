@@ -3,10 +3,9 @@
 //! This module provides VFS operations for accessing files on Palm devices.
 //! VFS allows reading and writing files on expansion cards.
 
-use crate::error::{PilotError, Result, VfsError};
+use crate::error::{PilotError, Result};
 use crate::types::{FourCharCode, PalmDateTime, VfsOpenMode};
 use crate::types::VfsFileAttributes;
-use std::io::{Read, Write};
 
 /// Volume reference number
 pub type VolumeRef = u16;

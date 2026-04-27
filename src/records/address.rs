@@ -4,7 +4,6 @@
 //! Based on pilot-link's address.c
 
 use crate::error::Result;
-use std::io::Read;
 
 /// Address entry indices
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

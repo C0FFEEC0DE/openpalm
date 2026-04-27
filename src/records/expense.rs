@@ -3,7 +3,7 @@
 //! This module provides expense tracking record parsing and serialization.
 
 use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, PalmDateTime};
+use crate::types::PalmDateTime;
 use crate::utils::{
     parse_pstring, pack_pstring,
     parse_string_list, pack_string_list,

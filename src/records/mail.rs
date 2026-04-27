@@ -3,7 +3,7 @@
 //! This module provides email message record parsing and serialization.
 
 use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, PalmDateTime};
+use crate::types::PalmDateTime;
 
 /// Mail record (simplified)
 #[derive(Debug, Clone)]

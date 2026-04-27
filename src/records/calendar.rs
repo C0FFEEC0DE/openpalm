@@ -155,10 +155,10 @@ impl CalendarEvent {
         
         // Parse flags
         let flags = data[15];
-        let has_alarm = (flags & CalendarFlags::ALARM) != 0;
+        let _has_alarm = (flags & CalendarFlags::ALARM) != 0;
         let has_repeat = (flags & CalendarFlags::REPEAT) != 0;
         let has_note = (flags & CalendarFlags::NOTE) != 0;
-        let has_exceptions = (flags & CalendarFlags::EXCEPTIONS) != 0;
+        let _has_exceptions = (flags & CalendarFlags::EXCEPTIONS) != 0;
         let has_description = (flags & CalendarFlags::DESCRIPTION) != 0;
         let has_location = (flags & CalendarFlags::LOCATION) != 0;
         
