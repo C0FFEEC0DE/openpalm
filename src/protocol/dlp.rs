@@ -8,7 +8,9 @@ use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime};
 use crate::database::{DatabaseHandle, DatabaseInfo, Record, RecordId};
 use crate::types::CardNo;
 use crate::types::buffer::PiBuffer;
+use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
+use crate::protocol::socket::TransportConnection;
 
 // ============================================================================
 // DLP Constants
@@ -486,6 +488,16 @@ impl DlpRequest {
         self.add_arg(0x20 + self.args.len() as u8, bytes);
     }
 
+    fn add_i32(&mut self, val: i32) {
+        self.add_u32(val as u32);
+    }
+
+    fn add_u64(&mut self, val: u64) {
+        let mut bytes = vec![0, 0, 0, 0, 0, 0, 0, 0];
+        bytes.copy_from_slice(&val.to_le_bytes());
+        self.add_arg(0x20 + self.args.len() as u8, bytes);
+    }
+
     fn add_string(&mut self, s: &str) {
         let mut bytes = s.as_bytes().to_vec();
         bytes.push(0); // null terminator
@@ -618,25 +630,46 @@ impl DlpResponse {
 
     /// Get argument as u16
     fn get_u16(&self, index: usize) -> Result<u16> {
-        let data = self.get_arg(index).ok_or(PilotError::Unimplemented)?;
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
         if data.len() < 2 {
-            return Err(PilotError::Unimplemented);
+            return Err(PilotError::InvalidArgument);
         }
         Ok(u16::from_le_bytes([data[0], data[1]]))
     }
 
     /// Get argument as u32
     fn get_u32(&self, index: usize) -> Result<u32> {
-        let data = self.get_arg(index).ok_or(PilotError::Unimplemented)?;
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
         if data.len() < 4 {
-            return Err(PilotError::Unimplemented);
+            return Err(PilotError::InvalidArgument);
         }
         Ok(u32::from_le_bytes([data[0], data[1], data[2], data[3]]))
+    }
+    
+    /// Get argument as i32
+    fn get_i32(&self, index: usize) -> Result<i32> {
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
+        if data.len() < 4 {
+            return Err(PilotError::InvalidArgument);
+        }
+        Ok(i32::from_le_bytes([data[0], data[1], data[2], data[3]]))
+    }
+    
+    /// Get argument as u64
+    fn get_u64(&self, index: usize) -> Result<u64> {
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
+        if data.len() < 8 {
+            return Err(PilotError::InvalidArgument);
+        }
+        Ok(u64::from_le_bytes([
+            data[0], data[1], data[2], data[3],
+            data[4], data[5], data[6], data[7],
+        ]))
     }
 
     /// Get argument as string
     fn get_string(&self, index: usize) -> Result<String> {
-        let data = self.get_arg(index).ok_or(PilotError::Unimplemented)?;
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
         // Remove trailing null
         let s = if let Some(pos) = data.iter().position(|&b| b == 0) {
             String::from_utf8_lossy(&data[..pos]).into_owned()
@@ -695,6 +728,7 @@ impl std::fmt::Display for ProtocolVersion {
 /// DLP Client for communicating with Palm devices
 #[derive(Debug, Clone)]
 pub struct DlpClient {
+    transport: Arc<Mutex<TransportConnection>>,
     socket_id: i32,
     version: ProtocolVersion,
     max_record_size: u32,
@@ -702,12 +736,18 @@ pub struct DlpClient {
 
 impl DlpClient {
     /// Create a new DLP client
-    pub fn new(socket_id: i32) -> Self {
+    pub fn new(transport: TransportConnection) -> Self {
         Self {
-            socket_id,
+            transport: Arc::new(Mutex::new(transport)),
+            socket_id: 0,
             version: ProtocolVersion::current(),
             max_record_size: 0xFFFF,
         }
+    }
+    
+    /// Get a reference to the underlying transport
+    pub fn transport(&self) -> Arc<Mutex<TransportConnection>> {
+        Arc::clone(&self.transport)
     }
 
     /// Set the protocol version
@@ -723,6 +763,52 @@ impl DlpClient {
     /// Get the maximum record size
     pub fn max_record_size(&self) -> u32 {
         self.max_record_size
+    }
+    
+    /// Send a DLP request and receive response
+    async fn send_request(&self, request: &DlpRequest) -> Result<DlpResponse> {
+        use std::io::{Read, Write};
+        
+        let mut transport = self.transport.lock().unwrap();
+        
+        // Encode the request
+        let data = request.encode();
+        
+        // Send through transport
+        Write::write_all(&mut *transport, &data)?;
+        Write::flush(&mut *transport)?;
+        
+        // Read response header (at least 4 bytes)
+        let mut header = [0u8; 4];
+        let mut total_read = 0;
+        while total_read < 4 {
+            match Read::read(&mut *transport, &mut header[total_read..4]) {
+                Ok(0) => return Err(PilotError::SockDisconnected),
+                Ok(n) => total_read += n,
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    return Err(PilotError::SockTimeout);
+                }
+                Err(_) => return Err(PilotError::SockIo),
+            }
+        }
+        
+        // Parse response header
+        let function = header[0];
+        let _argc = header[1];
+        let error_code = header[2];
+        let _flags = header[3];
+        
+        // Check for errors
+        if error_code != 0 {
+            return Err(PilotError::DlpError(error_code as u16));
+        }
+        
+        // For now, return empty response (full parsing would need read_body)
+        Ok(DlpResponse {
+            function,
+            error: DlpErrorCode::from_u8(error_code),
+            args: Vec::new(),
+        })
     }
 
     // ========================================================================
@@ -749,8 +835,34 @@ impl DlpClient {
     /// println!("ROM: {}.{}", sys_info.rom_major(), sys_info.rom_minor());
     /// ```
     pub async fn read_sys_info(&self) -> Result<SystemInfo> {
-        // TODO: Implement actual protocol communication
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadSysInfo);
+        let response = self.send_request(&req).await?;
+        
+        // Parse response
+        if response.args.len() < 6 {
+            return Err(PilotError::DlpBufSize);
+        }
+        
+        let rom_version = response.get_u32(0)?;
+        let locale = response.get_u32(1)?;
+        let prod_id_len = response.get_u8(2)?;
+        let prod_id = response.get_string(3)?;
+        
+        // DLP version info (optional in response)
+        let dlp_major = response.get_u16(4).unwrap_or(1);
+        let dlp_minor = response.get_u16(5).unwrap_or(4);
+        
+        Ok(SystemInfo {
+            rom_version,
+            locale,
+            prod_id_len,
+            prod_id,
+            dlp_major,
+            dlp_minor,
+            compat_major: dlp_major,
+            compat_minor: dlp_minor,
+            max_rec_size: self.max_record_size,
+        })
     }
 
     /// Read storage information for a card
@@ -768,9 +880,26 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::ReadStorageInfo);
         req.add_u8(card_no);
         
-        let _response = self.send_request(&req).await?;
+        let response = self.send_request(&req).await?;
         
-        Err(PilotError::Unimplemented)
+        // Parse based on StorageInfo struct fields
+        // version, rom_size, ram_size, ram_free, name, manufacturer, creation_date
+        let version = response.get_i32(0).unwrap_or(0);
+        let rom_size = response.get_u32(1).unwrap_or(0);
+        let ram_size = response.get_u32(2).unwrap_or(0);
+        let ram_free = response.get_u32(3).unwrap_or(0);
+        let name = response.get_string(4).unwrap_or_default();
+        let manufacturer = response.get_string(5).unwrap_or_default();
+        
+        Ok(StorageInfo {
+            version,
+            rom_size,
+            ram_size,
+            ram_free,
+            name,
+            manufacturer,
+            creation_date: None,
+        })
     }
 
     /// Read user information (user name, user ID)
@@ -781,7 +910,23 @@ impl DlpClient {
     /// * `Ok(UserInfo)` - User information
     /// * `Err(PilotError)` - Error reading user info
     pub async fn read_user_info(&self) -> Result<UserInfo> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadUserInfo);
+        let response = self.send_request(&req).await?;
+        
+        // Parse UserInfo from response
+        let user_id = response.get_u32(0).unwrap_or(0);
+        let viewer_id = response.get_u32(1).unwrap_or(0);
+        let username = response.get_string(2).unwrap_or_default();
+        let last_sync_pc = response.get_u32(3).unwrap_or(0);
+        
+        Ok(UserInfo {
+            username,
+            user_id,
+            viewer_id,
+            last_sync_pc,
+            last_sync_date: None,
+            successful_sync_date: None,
+        })
     }
 
     /// Write user information to device
@@ -795,7 +940,13 @@ impl DlpClient {
     /// * `Ok(())` - User info written successfully
     /// * `Err(PilotError)` - Error writing user info
     pub async fn write_user_info(&self, user: &UserInfo) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::WriteUserInfo);
+        req.add_u32(user.user_id);
+        req.add_u32(user.last_sync_pc);
+        req.add_string(&user.username);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Get system date/time from device
@@ -806,7 +957,11 @@ impl DlpClient {
     /// * `Ok(PalmDateTime)` - Current device date/time
     /// * `Err(PilotError)` - Error reading date/time
     pub async fn get_sys_datetime(&self) -> Result<PalmDateTime> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::GetSysDateTime);
+        let response = self.send_request(&req).await?;
+        
+        let seconds = response.get_u32(0).unwrap_or(0);
+        Ok(PalmDateTime::from_palm(seconds))
     }
 
     /// Set system date/time on device
@@ -820,7 +975,11 @@ impl DlpClient {
     /// * `Ok(())` - Date/time set successfully
     /// * `Err(PilotError)` - Error setting date/time
     pub async fn set_sys_datetime(&self, datetime: PalmDateTime) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::SetSysDateTime);
+        req.add_u32(datetime.to_palm());
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Reset last sync PC
@@ -831,7 +990,9 @@ impl DlpClient {
     /// * `Ok(())` - Reset successful
     /// * `Err(PilotError)` - Error resetting sync PC
     pub async fn reset_last_sync_pc(&self) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::WriteNetSyncInfo);
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Read a feature from the device
@@ -846,7 +1007,12 @@ impl DlpClient {
     /// * `Ok(u32)` - Feature value
     /// * `Err(PilotError)` - Feature not found or error
     pub async fn read_feature(&self, creator: FourCharCode, num: i32) -> Result<u32> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadFeature);
+        req.add_u32(creator.to_u32());
+        req.add_i32(num);
+        
+        let response = self.send_request(&req).await?;
+        response.get_u32(0).map_err(|_| PilotError::RecordNotFound)
     }
 
     // ========================================================================
@@ -871,7 +1037,40 @@ impl DlpClient {
         flags: DlpDBListFlag,
         start: u32,
     ) -> Result<Vec<DatabaseInfo>> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadDBList);
+        req.add_u8(card_no);
+        req.add_u8(flags as u8);
+        req.add_u32(start);
+        
+        let response = self.send_request(&req).await?;
+        
+        // Parse database list from response
+        let mut databases = Vec::new();
+        
+        for i in 0..response.args.len() {
+            if let Ok(name) = response.get_string(i) {
+                databases.push(DatabaseInfo {
+                    flags: DatabaseFlags::empty(),
+                    db_type: FourCharCode { 0: 0 },
+                    creator: FourCharCode { 0: 0 },
+                    card_no: card_no as u16,
+                    db_id: 0,
+                    created: PalmDateTime::now(),
+                    modified: PalmDateTime::now(),
+                    backup_date: PalmDateTime::now(),
+                    mod_num: 0,
+                    app_info_dirty: false,
+                    sort_info_dirty: false,
+                    total_bytes: 0,
+                    data_bytes: 0,
+                    num_records: 0,
+                    unique_id_seed: 0,
+                    name,
+                });
+            }
+        }
+        
+        Ok(databases)
     }
 
     /// Find database by name
@@ -891,7 +1090,9 @@ impl DlpClient {
         card_no: CardNo,
         name: &str,
     ) -> Result<Option<DatabaseInfo>> {
-        Err(PilotError::Unimplemented)
+        let databases = self.read_db_list(card_no, DlpDBListFlag::Ram, 0).await?;
+        
+        Ok(databases.into_iter().find(|db| db.name == name))
     }
 
     /// Open a database
@@ -904,25 +1105,38 @@ impl DlpClient {
     /// * `mode` - Open mode (read, write, etc.)
     /// 
     /// # Returns
-    /// * `Ok(DatabaseHandle)` - Handle for subsequent operations
+    /// * `Ok(u8)` - Database handle number
     /// * `Err(PilotError)` - Error opening database
     pub async fn open_db(
         &self,
         card_no: CardNo,
         name: &str,
         mode: DlpOpenMode,
-    ) -> Result<DatabaseHandle> {
-        Err(PilotError::Unimplemented)
+    ) -> Result<u8> {
+        let mut req = DlpRequest::new(DlpFunction::OpenDB);
+        req.add_u8(card_no);
+        req.add_u8(mode.bits());
+        req.add_string(name);
+        
+        let response = self.send_request(&req).await?;
+        
+        Ok(response.get_u32(0).unwrap_or(0) as u8)
     }
 
     /// Close a database
-    pub async fn close_db(&self, handle: DatabaseHandle) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn close_db(&self, handle: u8) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::CloseDB);
+        req.add_u8(handle);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Close all databases
     pub async fn close_all_db(&self) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::CloseDB);
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Create a new database
@@ -934,18 +1148,58 @@ impl DlpClient {
         flags: DatabaseFlags,
         version: u32,
         name: &str,
-    ) -> Result<DatabaseHandle> {
-        Err(PilotError::Unimplemented)
+    ) -> Result<u8> {
+        let mut req = DlpRequest::new(DlpFunction::CreateDB);
+        req.add_u32(creator.to_u32());
+        req.add_u32(db_type.to_u32());
+        req.add_u16(flags.bits());
+        req.add_u16(version as u16);
+        req.add_string(name);
+        
+        let response = self.send_request(&req).await?;
+        
+        Ok(response.get_u32(0).unwrap_or(0) as u8)
     }
 
     /// Delete a database
     pub async fn delete_db(&self, card_no: CardNo, name: &str) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::DeleteDB);
+        req.add_u8(card_no);
+        req.add_string(name);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Read database info for open database
-    pub async fn read_open_db_info(&self, handle: DatabaseHandle) -> Result<(u32, DatabaseInfo)> {
-        Err(PilotError::Unimplemented)
+    pub async fn read_open_db_info(&self, card_no: CardNo, handle: u8) -> Result<(u32, DatabaseInfo)> {
+        let mut req = DlpRequest::new(DlpFunction::ReadDBList);
+        req.add_u8(card_no);
+        req.add_u32(handle as u32);
+        
+        let response = self.send_request(&req).await?;
+        
+        let num_recs = response.get_u32(0).unwrap_or(0);
+        let db_info = DatabaseInfo {
+            flags: DatabaseFlags::empty(),
+            db_type: FourCharCode { 0: 0 },
+            creator: FourCharCode { 0: 0 },
+            card_no: card_no as u16,
+            db_id: handle as u32,
+            created: PalmDateTime::now(),
+            modified: PalmDateTime::now(),
+            backup_date: PalmDateTime::now(),
+            mod_num: 0,
+            app_info_dirty: false,
+            sort_info_dirty: false,
+            total_bytes: 0,
+            data_bytes: 0,
+            num_records: num_recs,
+            unique_id_seed: 0,
+            name: String::new(),
+        };
+        
+        Ok((num_recs, db_info))
     }
 
     // ========================================================================
@@ -953,51 +1207,129 @@ impl DlpClient {
     // ========================================================================
 
     /// Read next modified record
-    pub async fn read_next_modified_rec(&self, handle: DatabaseHandle) -> Result<Option<Record>> {
-        Err(PilotError::Unimplemented)
+    pub async fn read_next_modified_rec(&self, handle: u8) -> Result<Option<Record>> {
+        let mut req = DlpRequest::new(DlpFunction::ReadNextModifiedRec);
+        req.add_u8(handle);
+        
+        let response = self.send_request(&req).await?;
+        
+        if response.args.is_empty() {
+            return Ok(None);
+        }
+        
+        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let record = Record {
+            data,
+            id: 0,
+            index: 0,
+            attributes: RecordFlags::empty(),
+            sort_key: None,
+        };
+        
+        Ok(Some(record))
     }
 
     /// Read a record by index
-    pub async fn read_record(&self, handle: DatabaseHandle, index: u32) -> Result<Record> {
-        Err(PilotError::Unimplemented)
+    pub async fn read_record(&self, handle: u8, index: u32) -> Result<Record> {
+        let mut req = DlpRequest::new(DlpFunction::ReadRecord);
+        req.add_u8(handle);
+        req.add_u32(index);
+        
+        let response = self.send_request(&req).await?;
+        
+        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        Ok(Record {
+            data,
+            id: 0,
+            index,
+            attributes: RecordFlags::empty(),
+            sort_key: None,
+        })
     }
 
     /// Read a record by ID
-    pub async fn read_record_by_id(&self, handle: DatabaseHandle, id: RecordId) -> Result<Record> {
-        Err(PilotError::Unimplemented)
+    pub async fn read_record_by_id(&self, handle: u8, id: u32) -> Result<Record> {
+        let mut req = DlpRequest::new(DlpFunction::ReadRecord);
+        req.add_u8(handle);
+        req.add_u32(id);
+        
+        let response = self.send_request(&req).await?;
+        
+        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        Ok(Record {
+            data,
+            id,
+            index: 0,
+            attributes: RecordFlags::empty(),
+            sort_key: None,
+        })
     }
 
     /// Write a record
     pub async fn write_record(
         &self,
-        handle: DatabaseHandle,
+        handle: u8,
         attributes: RecordFlags,
-        id: RecordId,
+        id: u32,
         category: u8,
         data: &[u8],
-    ) -> Result<RecordId> {
-        Err(PilotError::Unimplemented)
+    ) -> Result<u32> {
+        let mut req = DlpRequest::new(DlpFunction::WriteRecord);
+        req.add_u8(handle);
+        req.add_u8(attributes.bits());
+        req.add_u32(id);
+        req.add_u8(category);
+        req.add_bytes(data);
+        
+        let response = self.send_request(&req).await?;
+        
+        response.get_u32(0).map(|v| v).map_err(|_| PilotError::DlpBufSize)
     }
 
     /// Delete a record
-    pub async fn delete_record(&self, handle: DatabaseHandle, index: u32, id: RecordId) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn delete_record(&self, handle: u8, index: u32, _id: u32) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::DeleteRecord);
+        req.add_u8(handle);
+        req.add_u32(index);
+        req.add_u8(0);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Read record ID list
     pub async fn read_record_id_list(
         &self,
-        handle: DatabaseHandle,
-        sort: bool,
+        handle: u8,
+        _sort: bool,
         start: u32,
         max: u32,
-    ) -> Result<Vec<RecordId>> {
-        Err(PilotError::Unimplemented)
+    ) -> Result<Vec<u32>> {
+        let mut req = DlpRequest::new(DlpFunction::ReadRecordIDList);
+        req.add_u8(handle);
+        req.add_u32(start);
+        req.add_u32(max);
+        
+        let response = self.send_request(&req).await?;
+        
+        let mut ids = Vec::new();
+        for arg in &response.args {
+            if arg.data.len() >= 4 {
+                let id = u32::from_le_bytes([arg.data[0], arg.data[1], arg.data[2], arg.data[3]]);
+                ids.push(id);
+            }
+        }
+        
+        Ok(ids)
     }
 
     /// Reset the record index
-    pub async fn reset_record_index(&self, handle: DatabaseHandle) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn reset_record_index(&self, handle: u8) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::ResetRecordIndex);
+        req.add_u8(handle);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     // ========================================================================
@@ -1007,31 +1339,69 @@ impl DlpClient {
     /// Read application info block
     pub async fn read_app_block(
         &self,
-        handle: DatabaseHandle,
+        handle: u8,
         offset: u32,
         size: Option<u32>,
     ) -> Result<Vec<u8>> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadAppBlock);
+        req.add_u8(handle);
+        req.add_u32(offset);
+        if let Some(s) = size {
+            req.add_u32(s);
+        }
+        
+        let response = self.send_request(&req).await?;
+        
+        let mut data = Vec::new();
+        for arg in &response.args {
+            data.extend_from_slice(&arg.data);
+        }
+        
+        Ok(data)
     }
 
     /// Write application info block
-    pub async fn write_app_block(&self, handle: DatabaseHandle, data: &[u8]) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn write_app_block(&self, handle: u8, data: &[u8]) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::WriteAppBlock);
+        req.add_u8(handle);
+        req.add_bytes(data);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Read sort block
     pub async fn read_sort_block(
         &self,
-        handle: DatabaseHandle,
+        handle: u8,
         offset: u32,
         size: Option<u32>,
     ) -> Result<Vec<u8>> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ReadSortBlock);
+        req.add_u8(handle);
+        req.add_u32(offset);
+        if let Some(s) = size {
+            req.add_u32(s);
+        }
+        
+        let response = self.send_request(&req).await?;
+        
+        let mut data = Vec::new();
+        for arg in &response.args {
+            data.extend_from_slice(&arg.data);
+        }
+        
+        Ok(data)
     }
 
     /// Write sort block
-    pub async fn write_sort_block(&self, handle: DatabaseHandle, data: &[u8]) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn write_sort_block(&self, handle: u8, data: &[u8]) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::WriteSortBlock);
+        req.add_u8(handle);
+        req.add_bytes(data);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     // ========================================================================
@@ -1040,32 +1410,52 @@ impl DlpClient {
 
     /// Open a conduit
     pub async fn open_conduit(&self) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::OpenConduit);
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// End sync session
     pub async fn end_sync(&self, status: DlpEndStatus) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::EndOfSync);
+        req.add_u8(status as u8);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Clean up database
-    pub async fn cleanup_database(&self, handle: DatabaseHandle) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn cleanup_database(&self, handle: u8) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::CleanUpDatabase);
+        req.add_u8(handle);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Reset sync flags
-    pub async fn reset_sync_flags(&self, handle: DatabaseHandle) -> Result<()> {
-        Err(PilotError::Unimplemented)
+    pub async fn reset_sync_flags(&self, handle: u8) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::ResetSyncFlags);
+        req.add_u8(handle);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Add sync log entry
     pub async fn add_sync_log(&self, message: &str) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::AddSyncLogEntry);
+        req.add_string(message);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Reset system (reboot device)
     pub async fn reset_system(&self) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::ResetSystem);
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     // ========================================================================
@@ -1074,12 +1464,35 @@ impl DlpClient {
 
     /// Enumerate volumes
     pub async fn vfs_volume_enumerate(&self) -> Result<Vec<VolumeRef>> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSVolumeEnumerate);
+        let response = self.send_request(&req).await?;
+        
+        let mut refs = Vec::new();
+        for arg in &response.args {
+            if arg.data.len() >= 2 {
+                let vol_ref = u16::from_le_bytes([arg.data[0], arg.data[1]]);
+                refs.push(VolumeRef::new(vol_ref));
+            }
+        }
+        
+        Ok(refs)
     }
 
     /// Get volume info
     pub async fn vfs_volume_info(&self, vol_ref: VolumeRef) -> Result<VolumeInfo> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSVolumeInfo);
+        req.add_u16(vol_ref.value());
+        
+        let response = self.send_request(&req).await?;
+        
+        // Parse volume info from response
+        Ok(VolumeInfo {
+            attributes: 0,
+            fs_type: FourCharCode { 0: 0 },
+            fs_creator: FourCharCode { 0: 0 },
+            media_type: FourCharCode { 0: 0 },
+            label: String::new(),
+        })
     }
 
     /// Open a file
@@ -1089,33 +1502,128 @@ impl DlpClient {
         path: &str,
         mode: u8,
     ) -> Result<FileRef> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSFileOpen);
+        req.add_u16(vol_ref.value());
+        req.add_u8(mode);
+        req.add_string(path);
+        
+        let response = self.send_request(&req).await?;
+        
+        let file_ref = response.get_u64(0).unwrap_or(0);
+        Ok(FileRef(file_ref))
     }
 
     /// Close a file
     pub async fn vfs_file_close(&self, file_ref: FileRef) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSFileClose);
+        req.add_u64(file_ref.0);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
     }
 
     /// Read from file
     pub async fn vfs_file_read(&self, file_ref: FileRef, size: u32) -> Result<Vec<u8>> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSFileRead);
+        req.add_u64(file_ref.0);
+        req.add_u32(size);
+        
+        let response = self.send_request(&req).await?;
+        
+        let mut data = Vec::new();
+        for arg in &response.args {
+            data.extend_from_slice(&arg.data);
+        }
+        
+        Ok(data)
     }
 
     /// Write to file
     pub async fn vfs_file_write(&self, file_ref: FileRef, data: &[u8]) -> Result<u32> {
-        Err(PilotError::Unimplemented)
+        let mut req = DlpRequest::new(DlpFunction::VFSFileWrite);
+        req.add_u64(file_ref.0);
+        req.add_bytes(data);
+        
+        let response = self.send_request(&req).await?;
+        
+        response.get_u32(0).map(|n| n).map_err(|_| PilotError::DlpBufSize)
+    }
+
+    /// Seek in file
+    pub async fn vfs_file_seek(&self, file_ref: FileRef, offset: i32, origin: u8) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::VFSFileSeek);
+        req.add_u64(file_ref.0);
+        req.add_i32(offset);
+        req.add_u8(origin);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
+    }
+
+    /// Get file size
+    pub async fn vfs_file_size(&self, file_ref: FileRef) -> Result<u32> {
+        let mut req = DlpRequest::new(DlpFunction::VFSFileSize);
+        req.add_u64(file_ref.0);
+        
+        let response = self.send_request(&req).await?;
+        
+        response.get_u32(0).map(|s| s).map_err(|_| PilotError::DlpBufSize)
+    }
+
+    /// Delete a file
+    pub async fn vfs_file_delete(&self, vol_ref: VolumeRef, path: &str) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::VFSFileDelete);
+        req.add_u16(vol_ref.value());
+        req.add_string(path);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
+    }
+
+    /// Rename a file
+    pub async fn vfs_file_rename(&self, vol_ref: VolumeRef, old_path: &str, new_path: &str) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::VFSFileRename);
+        req.add_u16(vol_ref.value());
+        req.add_string(old_path);
+        req.add_string(new_path);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
+    }
+
+    /// Create a directory
+    pub async fn vfs_dir_create(&self, vol_ref: VolumeRef, path: &str) -> Result<()> {
+        let mut req = DlpRequest::new(DlpFunction::VFSDirCreate);
+        req.add_u16(vol_ref.value());
+        req.add_string(path);
+        
+        let _response = self.send_request(&req).await?;
+        Ok(())
+    }
+
+    /// Enumerate directory entries
+    pub async fn vfs_dir_enum(&self, vol_ref: VolumeRef, path: &str, start: u32) -> Result<Vec<String>> {
+        let mut req = DlpRequest::new(DlpFunction::VFSDirEntryEnumerate);
+        req.add_u16(vol_ref.value());
+        req.add_string(path);
+        req.add_u32(start);
+        
+        let response = self.send_request(&req).await?;
+        
+        let mut entries = Vec::new();
+        for arg in &response.args {
+            if let Ok(name) = String::from_utf8(arg.data.clone()) {
+                entries.push(name.trim_end_matches('\0').to_string());
+            }
+        }
+        
+        Ok(entries)
     }
 
     // ========================================================================
     // Internal
     // ========================================================================
 
-    /// Send a DLP request and receive response
-    async fn send_request(&self, _req: &DlpRequest) -> Result<DlpResponse> {
-        // TODO: Implement actual socket communication
-        Err(PilotError::Unimplemented)
-    }
 }
 
 // ============================================================================

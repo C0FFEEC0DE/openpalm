@@ -70,8 +70,9 @@ impl Default for SocketOptions {
     }
 }
 
-/// Inner transport connection
-enum TransportConnection {
+/// Inner transport connection (re-exported for DLP client)
+#[derive(Debug, Clone)]
+pub enum TransportConnection {
     #[cfg(feature = "serial")]
     Serial(Serial),
     #[cfg(feature = "usb")]
@@ -236,8 +237,10 @@ impl PilotSocket {
         transport.connect()?;
         self.state = SocketState::Connected;
         
-        // Create DLP client
-        self.dlp_client = Some(DlpClient::new(self.sd));
+        // Create DLP client with the transport
+        if let Some(ref transport) = self.transport {
+            self.dlp_client = Some(DlpClient::new(transport.clone()));
+        }
         
         Ok(())
     }

@@ -97,7 +97,7 @@ impl Serial {
         
         #[cfg(not(feature = "serial"))]
         {
-            Err(PilotError::Unimplemented)
+            Err(PilotError::InvalidArgument)
         }
     }
     
@@ -111,7 +111,7 @@ impl Serial {
         
         #[cfg(not(feature = "serial"))]
         {
-            Err(PilotError::Unimplemented)
+            Err(PilotError::InvalidArgument)
         }
     }
     

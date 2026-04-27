@@ -78,6 +78,18 @@ pub enum PilotError {
     VfsError(u16),
     /// Invalid data format
     InvalidData(String),
+    /// Unknown character encoding
+    UnknownCharEncoding,
+    /// Invalid database format
+    InvalidDatabase,
+    /// Database not found
+    DatabaseNotFound,
+    /// Record not found
+    RecordNotFound,
+    /// Invalid argument
+    InvalidArgument,
+    /// Operation timed out
+    Timeout,
     /// Unknown/unspecified error
     Unknown,
     /// Not implemented yet
@@ -111,6 +123,12 @@ impl PilotError {
             -500 => PilotError::GenericMemory,
             -501 => PilotError::GenericArgument,
             -502 => PilotError::GenericSystem,
+            -503 => PilotError::UnknownCharEncoding,
+            -504 => PilotError::InvalidDatabase,
+            -505 => PilotError::DatabaseNotFound,
+            -506 => PilotError::RecordNotFound,
+            -507 => PilotError::InvalidArgument,
+            -508 => PilotError::Timeout,
             _ => PilotError::Unknown,
         }
     }
@@ -145,7 +163,13 @@ impl PilotError {
             PilotError::GenericMemory |
             PilotError::GenericArgument |
             PilotError::GenericSystem |
-            PilotError::InvalidData(_) => -500,
+            PilotError::InvalidData(_) |
+            PilotError::UnknownCharEncoding |
+            PilotError::InvalidDatabase |
+            PilotError::DatabaseNotFound |
+            PilotError::RecordNotFound |
+            PilotError::InvalidArgument |
+            PilotError::Timeout => -500,
             
             PilotError::DlpError(_) => -301,
             PilotError::VfsError(_) => -300,
@@ -238,6 +262,12 @@ impl fmt::Display for PilotError {
             PilotError::GenericArgument => write!(f, "Invalid argument"),
             PilotError::GenericSystem => write!(f, "System error"),
             PilotError::InvalidData(msg) => write!(f, "Invalid data: {}", msg),
+            PilotError::UnknownCharEncoding => write!(f, "Unknown character encoding"),
+            PilotError::InvalidDatabase => write!(f, "Invalid database format"),
+            PilotError::DatabaseNotFound => write!(f, "Database not found"),
+            PilotError::RecordNotFound => write!(f, "Record not found"),
+            PilotError::InvalidArgument => write!(f, "Invalid argument"),
+            PilotError::Timeout => write!(f, "Operation timed out"),
             PilotError::Unknown => write!(f, "Unknown error"),
             PilotError::Unimplemented => write!(f, "Not implemented"),
         }

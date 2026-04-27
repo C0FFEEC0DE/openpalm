@@ -155,6 +155,7 @@ impl<T: Connection + ?Sized> Connection for Box<T> {
 }
 
 /// Mock connection for testing
+#[derive(Clone)]
 pub struct MockConnection {
     connected: bool,
     read_buffer: Vec<u8>,

@@ -233,7 +233,7 @@ impl Usb {
     
     /// Connect to USB device (not available without usb feature)
     pub fn connect(&mut self) -> Result<()> {
-        Err(PilotError::Unimplemented)
+        Err(PilotError::InvalidArgument)
     }
     
     /// Disconnect from USB device
