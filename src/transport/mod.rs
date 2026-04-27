@@ -10,6 +10,7 @@ pub use serial::{Serial, SerialParams};
 pub use usb::{Usb, UsbParams};
 
 use std::io::{Read, Write};
+use async_trait::async_trait;
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -42,6 +43,96 @@ pub trait Connection: Read + Write + Send {
     /// Set timeout for operations
     fn set_timeout(&mut self, timeout: std::time::Duration) {
         let _ = timeout;
+    }
+}
+
+/// Async connection trait for async/await operations
+/// 
+/// This trait provides async versions of the Connection operations.
+/// Implement this trait for async transport layers.
+#[async_trait]
+pub trait AsyncConnection: Send + Sync {
+    /// Connect to device asynchronously
+    async fn connect_async(&mut self) -> crate::error::Result<()>;
+    
+    /// Disconnect from device asynchronously
+    async fn disconnect_async(&mut self) -> crate::error::Result<()>;
+    
+    /// Check if connected
+    fn is_connected(&self) -> bool;
+    
+    /// Read data asynchronously
+    async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize>;
+    
+    /// Write data asynchronously  
+    async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize>;
+    
+    /// Flush write buffer
+    async fn flush_async(&mut self) -> std::io::Result<()>;
+    
+    /// Get connection state
+    fn state(&self) -> ConnectionState {
+        if self.is_connected() {
+            ConnectionState::Connected
+        } else {
+            ConnectionState::Disconnected
+        }
+    }
+}
+
+/// Adapter to convert sync Connection to AsyncConnection
+/// 
+/// This allows sync connections to be used with async code.
+/// Uses interior mutability for thread safety.
+pub struct AsyncConnectionAdapter<T> {
+    inner: std::sync::Mutex<T>,
+}
+
+impl<T> AsyncConnectionAdapter<T> {
+    /// Create a new async adapter from a sync connection
+    pub fn new(inner: T) -> Self {
+        Self { inner: std::sync::Mutex::new(inner) }
+    }
+    
+    /// Consume adapter and return inner connection
+    pub fn into_inner(self) -> T {
+        self.inner.into_inner().unwrap()
+    }
+}
+
+#[async_trait]
+impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<T> {
+    async fn connect_async(&mut self) -> crate::error::Result<()> {
+        let mut guard = self.inner.lock().unwrap();
+        guard.connect()
+    }
+    
+    async fn disconnect_async(&mut self) -> crate::error::Result<()> {
+        let mut guard = self.inner.lock().unwrap();
+        guard.disconnect()
+    }
+    
+    fn is_connected(&self) -> bool {
+        if let Ok(guard) = self.inner.lock() {
+            guard.is_connected()
+        } else {
+            false
+        }
+    }
+    
+    async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut guard = self.inner.lock().unwrap();
+        guard.read(buf)
+    }
+    
+    async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let mut guard = self.inner.lock().unwrap();
+        guard.write(buf)
+    }
+    
+    async fn flush_async(&mut self) -> std::io::Result<()> {
+        let mut guard = self.inner.lock().unwrap();
+        guard.flush()
     }
 }
 

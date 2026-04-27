@@ -730,12 +730,40 @@ impl DlpClient {
     // ========================================================================
 
     /// Read system information from the device
+    /// 
+    /// Returns device system information including:
+    /// - ROM version
+    /// - Localization settings
+    /// - Manufacturer info
+    /// 
+    /// # Arguments
+    /// * `none`
+    /// 
+    /// # Returns
+    /// * `Ok(SystemInfo)` - System information from device
+    /// * `Err(PilotError)` - Communication or protocol error
+    /// 
+    /// # Example
+    /// ```ignore
+    /// let sys_info = client.read_sys_info().await?;
+    /// println!("ROM: {}.{}", sys_info.rom_major(), sys_info.rom_minor());
+    /// ```
     pub async fn read_sys_info(&self) -> Result<SystemInfo> {
         // TODO: Implement actual protocol communication
         Err(PilotError::Unimplemented)
     }
 
-    /// Read storage information
+    /// Read storage information for a card
+    /// 
+    /// Returns information about storage on a memory card including
+    /// total and free space.
+    /// 
+    /// # Arguments
+    /// * `card_no` - Card number (usually 0 for internal, 1+ for expansion)
+    /// 
+    /// # Returns
+    /// * `Ok(StorageInfo)` - Storage information
+    /// * `Err(PilotError)` - Error reading storage info
     pub async fn read_storage_info(&self, card_no: CardNo) -> Result<StorageInfo> {
         let mut req = DlpRequest::new(DlpFunction::ReadStorageInfo);
         req.add_u8(card_no);
@@ -745,32 +773,78 @@ impl DlpClient {
         Err(PilotError::Unimplemented)
     }
 
-    /// Read user information
+    /// Read user information (user name, user ID)
+    /// 
+    /// Returns the user's information configured on the device.
+    /// 
+    /// # Returns
+    /// * `Ok(UserInfo)` - User information
+    /// * `Err(PilotError)` - Error reading user info
     pub async fn read_user_info(&self) -> Result<UserInfo> {
         Err(PilotError::Unimplemented)
     }
 
-    /// Write user information
-    pub async fn write_user_info(&self, _user: &UserInfo) -> Result<()> {
+    /// Write user information to device
+    /// 
+    /// Updates the user's information on the device.
+    /// 
+    /// # Arguments
+    /// * `user` - User information to write
+    /// 
+    /// # Returns
+    /// * `Ok(())` - User info written successfully
+    /// * `Err(PilotError)` - Error writing user info
+    pub async fn write_user_info(&self, user: &UserInfo) -> Result<()> {
         Err(PilotError::Unimplemented)
     }
 
-    /// Get system date/time
+    /// Get system date/time from device
+    /// 
+    /// Reads the current date/time from the device's internal clock.
+    /// 
+    /// # Returns
+    /// * `Ok(PalmDateTime)` - Current device date/time
+    /// * `Err(PilotError)` - Error reading date/time
     pub async fn get_sys_datetime(&self) -> Result<PalmDateTime> {
         Err(PilotError::Unimplemented)
     }
 
-    /// Set system date/time
-    pub async fn set_sys_datetime(&self, _datetime: PalmDateTime) -> Result<()> {
+    /// Set system date/time on device
+    /// 
+    /// Updates the device's internal clock.
+    /// 
+    /// # Arguments
+    /// * `datetime` - New date/time to set
+    /// 
+    /// # Returns
+    /// * `Ok(())` - Date/time set successfully
+    /// * `Err(PilotError)` - Error setting date/time
+    pub async fn set_sys_datetime(&self, datetime: PalmDateTime) -> Result<()> {
         Err(PilotError::Unimplemented)
     }
 
     /// Reset last sync PC
+    /// 
+    /// Resets the last sync PC ID to zero, forcing a full sync.
+    /// 
+    /// # Returns
+    /// * `Ok(())` - Reset successful
+    /// * `Err(PilotError)` - Error resetting sync PC
     pub async fn reset_last_sync_pc(&self) -> Result<()> {
         Err(PilotError::Unimplemented)
     }
 
-    /// Read a feature
+    /// Read a feature from the device
+    /// 
+    /// Features are key-value pairs stored in the device's NVFS.
+    /// 
+    /// # Arguments
+    /// * `creator` - Creator ID of the feature
+    /// * `num` - Feature number
+    /// 
+    /// # Returns
+    /// * `Ok(u32)` - Feature value
+    /// * `Err(PilotError)` - Feature not found or error
     pub async fn read_feature(&self, creator: FourCharCode, num: i32) -> Result<u32> {
         Err(PilotError::Unimplemented)
     }
@@ -779,7 +853,18 @@ impl DlpClient {
     // Database Functions
     // ========================================================================
 
-    /// Read database list
+    /// Read list of databases on a card
+    /// 
+    /// Returns a list of all databases matching the specified criteria.
+    /// 
+    /// # Arguments
+    /// * `card_no` - Card number (0 for internal storage)
+    /// * `flags` - Filter flags for database types
+    /// * `start` - Starting index (for pagination)
+    /// 
+    /// # Returns
+    /// * `Ok(Vec<DatabaseInfo>)` - List of databases
+    /// * `Err(PilotError)` - Error reading database list
     pub async fn read_db_list(
         &self,
         card_no: CardNo,
@@ -790,6 +875,17 @@ impl DlpClient {
     }
 
     /// Find database by name
+    /// 
+    /// Searches for a database with the specified name on the given card.
+    /// 
+    /// # Arguments
+    /// * `card_no` - Card number to search
+    /// * `name` - Database name to find
+    /// 
+    /// # Returns
+    /// * `Ok(Some(DatabaseInfo))` - Database found
+    /// * `Ok(None)` - Database not found
+    /// * `Err(PilotError)` - Error searching
     pub async fn find_db_by_name(
         &self,
         card_no: CardNo,
@@ -799,6 +895,17 @@ impl DlpClient {
     }
 
     /// Open a database
+    /// 
+    /// Opens an existing database for reading/writing.
+    /// 
+    /// # Arguments
+    /// * `card_no` - Card number
+    /// * `name` - Database name
+    /// * `mode` - Open mode (read, write, etc.)
+    /// 
+    /// # Returns
+    /// * `Ok(DatabaseHandle)` - Handle for subsequent operations
+    /// * `Err(PilotError)` - Error opening database
     pub async fn open_db(
         &self,
         card_no: CardNo,

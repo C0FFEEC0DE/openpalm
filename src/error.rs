@@ -100,7 +100,7 @@ impl PilotError {
             -300 => PilotError::DlpBufSize,
             -301 => PilotError::DlpPalmOs,
             -302 => PilotError::DlpUnsupported,
-            -303 => PilotError::SockInvalid,
+            -303 => PilotError::DlpSocket,
             -304 => PilotError::DlpDataSize,
             -305 => PilotError::DlpCommand,
             -400 => PilotError::FileInvalid,
