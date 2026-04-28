@@ -52,7 +52,7 @@ pub use records::{
 // VFS exports
 pub use vfs::{
     VolumeInfo, DirEntry, VolumeRef, FileRef,
-    VfsImpl,
+    
     path,
 };
 // Note: VfsFileAttributes and VfsOpenMode are exported from types module
