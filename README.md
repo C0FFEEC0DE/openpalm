@@ -32,33 +32,29 @@ tokio = { version = "1", features = ["full"] }
 ## Quick Start
 
 ```rust
-use openpalm::{PilotSocket, DlpClient, DatabaseInfo};
+use openpalm::PilotSocket;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Create a new PilotSocket
-    let mut socket = PilotSocket::new();
-    
-    // Connect via serial
-    socket.connect_serial("/dev/ttyUSB0", 9600).await?;
-    
-    // Create DLP client
-    let client = DlpClient::new(socket.socket_id());
-    
-    // Read device system info
-    let sys_info = client.read_sys_info().await?;
-    println!("Device: {} v{}.{}", 
-        sys_info.manufacturer(), 
-        sys_info.rom_major(), 
+    // Create a PilotSocket for serial connection
+    let mut socket = PilotSocket::serial("/dev/ttyUSB0");
+
+    // Connect to the device
+    socket.connect()?;
+
+    // Read system info
+    let sys_info = socket.read_sys_info().await?;
+    println!("Device ROM version: {}.{}",
+        sys_info.rom_major(),
         sys_info.rom_minor()
     );
-    
+
     // List databases
-    let databases = client.read_db_list(0, DlpDBListFlag::all(), 0).await?;
+    let databases = socket.list_databases().await?;
     for db in databases {
         println!("  - {}", db.name);
     }
-    
+
     Ok(())
 }
 ```
@@ -68,10 +64,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ### Reading User Info
 
 ```rust
-use openpalm::protocol::dlp::{DlpClient, DlpRequest};
+use openpalm::PilotSocket;
 
-async fn get_user_info(client: &DlpClient) -> Result<(), Box<dyn std::error::Error>> {
-    let user_info = client.read_user_info().await?;
+async fn get_user_info(socket: &mut PilotSocket) -> Result<(), Box<dyn std::error::Error>> {
+    let user_info = socket.read_user_info().await?;
     println!("User: {} (ID: {})", user_info.name(), user_info.user_id());
     Ok(())
 }
@@ -80,57 +76,50 @@ async fn get_user_info(client: &DlpClient) -> Result<(), Box<dyn std::error::Err
 ### Opening a Database
 
 ```rust
-use openpalm::{OpenMode, DatabaseHandle};
+use openpalm::{PilotSocket, protocol::dlp::DlpOpenMode};
 
 async fn open_database(
-    client: &DlpClient,
-    name: &str
-) -> Result<DatabaseHandle, Box<dyn std::error::Error>> {
-    let handle = client.open_db(0, name, OpenMode::ReadWrite).await?;
-    println!("Opened: {} (handle: {})", name, handle);
-    Ok(handle)
+    socket: &mut PilotSocket,
+    name: &str,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let handle = socket.open_database(name, DlpOpenMode::ReadWrite).await?;
+    println!("Opened: {}", name);
+    Ok(())
 }
 ```
 
 ### Reading Records
 
 ```rust
-use openpalm::database::Record;
+use openpalm::{PilotSocket, database::DatabaseHandle};
 
 async fn read_all_records(
-    client: &DlpClient,
-    handle: DatabaseHandle
-) -> Result<Vec<Record>, Box<dyn std::error::Error>> {
-    let mut records = Vec::new();
-    let mut index = 0;
-    
+    socket: &mut PilotSocket,
+    handle: DatabaseHandle,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let mut index = 0u32;
     loop {
-        match client.read_record(handle, index).await {
-            Ok(record) => records.push(record),
-            Err(_) => break, // No more records
+        match socket.read_record(handle, index).await {
+            Ok(record) => println!("Record: {:?}", record),
+            Err(_) => break,
         }
         index += 1;
     }
-    
-    println!("Read {} records", records.len());
-    Ok(records)
+    Ok(())
 }
 ```
 
 ### Using Mock Connection for Testing
 
 ```rust
-use openpalm::transport::{MockConnection, Connection};
+use openpalm::PilotSocket;
 
 fn test_with_mock() {
-    let mut mock = MockConnection::new();
-    mock.connect().unwrap();
-    
-    // Simulate data exchange
-    mock.set_read_data(vec![0x01, 0x02, 0x03]);
-    
-    let written = mock.written_data();
-    println!("Wrote {} bytes", written.len());
+    let mut socket = PilotSocket::mock();
+    socket.connect().unwrap();
+
+    // Test DLP operations against mock transport
+    println!("Connected: {}", socket.is_connected());
 }
 ```
 
@@ -198,9 +187,9 @@ cargo test test_calendar
 
 ## Documentation
 
-- [Architecture](docs/ARCHITECTURE.md) - System architecture
-- [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) - Development progress
-- [Fix Plan](docs/FIX_PLAN.md) - Known issues and fixes
+- [Architecture](docs/ARCHITECTURE.md) — Reference analysis of original pilot-link C codebase
+- [Implementation Plan](docs/IMPLEMENTATION_PLAN.md) — Phase-by-phase port progress (complete)
+- [Session Report](SESSION_REPORT.md) — Transport refactoring fix and code review resolution (2026-04-28)
 
 ## Dependencies
 
@@ -244,10 +233,11 @@ GPL-2.0 or later
 
 ## Status
 
-**Progress: 100% (39/39 files implemented)**
+**All core implementation complete (39/39 files)**
 
-- 137 tests passing
-- Core protocol implemented
-- All record types implemented
-- Transport layer complete
-- VFS stubs ready for implementation
+- 147 tests passing
+- DLP 1.4 protocol: 70+ functions
+- All 16 record types implemented
+- Transport layer: serial + USB (feature-gated)
+- VFS operations in DlpClient
+- Mock connection available for testing

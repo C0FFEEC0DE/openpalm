@@ -2,8 +2,7 @@
 //!
 //! Uses the serialport crate for cross-platform serial communication.
 
-#[cfg(feature = "serial")]
-use serialport::{SerialPort, SerialPortType, FlowControl};
+use serialport::{SerialPort, SerialPortType};
 use std::io::{Read, Write};
 use std::time::Duration;
 
@@ -47,8 +46,11 @@ pub struct Serial {
     baud_rate: u32,
     /// Timeout
     timeout: Duration,
+    /// Flow control
+    flow_control: bool,
+    /// XON/XOFF flow control
+    xon_xoff: bool,
     /// Serial port handle (None when disconnected)
-    #[cfg(feature = "serial")]
     port: Option<Box<dyn SerialPort>>,
 }
 
@@ -59,7 +61,8 @@ impl Serial {
             port_name: params.port,
             baud_rate: params.baud_rate,
             timeout: Duration::from_millis(params.timeout_ms),
-            #[cfg(feature = "serial")]
+            flow_control: params.flow_control,
+            xon_xoff: params.xon_xoff,
             port: None,
         }
     }
@@ -74,65 +77,42 @@ impl Serial {
     
     /// Open the serial port
     pub fn connect(&mut self) -> Result<()> {
-        #[cfg(feature = "serial")]
-        {
-            use serialport::{DataBits, FlowControl, Parity, StopBits};
-            
-            let port = serialport::new(&self.port_name, self.baud_rate)
-                .data_bits(DataBits::Eight)
-                .parity(Parity::None)
-                .stop_bits(StopBits::One)
-                .timeout(self.timeout.clone())
-                .flow_control(if self.flow_control {
-                    FlowControl::Hardware
-                } else {
-                    FlowControl::None
-                })
-                .open()
-                .map_err(|e| PilotError::SockIo)?;
-            
-            self.port = Some(port);
-            Ok(())
-        }
+        use serialport::{DataBits, FlowControl, Parity, StopBits};
         
-        #[cfg(not(feature = "serial"))]
-        {
-            Err(PilotError::InvalidArgument)
-        }
+        let port = serialport::new(&self.port_name, self.baud_rate)
+            .data_bits(DataBits::Eight)
+            .parity(Parity::None)
+            .stop_bits(StopBits::One)
+            .timeout(self.timeout.clone())
+            .flow_control(if self.xon_xoff {
+                FlowControl::Software
+            } else if self.flow_control {
+                FlowControl::Hardware
+            } else {
+                FlowControl::None
+            })
+            .open()
+            .map_err(|e| PilotError::SockIo)?;
+        
+        self.port = Some(port);
+        Ok(())
     }
     
     /// Close the serial port
     pub fn disconnect(&mut self) -> Result<()> {
-        #[cfg(feature = "serial")]
-        {
-            self.port = None;
-            Ok(())
-        }
-        
-        #[cfg(not(feature = "serial"))]
-        {
-            Err(PilotError::InvalidArgument)
-        }
+        self.port = None;
+        Ok(())
     }
     
     /// Check if connected
     pub fn is_connected(&self) -> bool {
-        #[cfg(feature = "serial")]
-        {
-            self.port.is_some()
-        }
-        
-        #[cfg(not(feature = "serial"))]
-        {
-            false
-        }
+        self.port.is_some()
     }
     
     /// Set the baud rate
     pub fn set_baud_rate(&mut self, baud: u32) -> Result<()> {
         self.baud_rate = baud;
         
-        #[cfg(feature = "serial")]
         if let Some(ref mut port) = self.port {
             port.set_baud_rate(baud)
                 .map_err(|_| PilotError::SockIo)?;
@@ -150,14 +130,12 @@ impl Serial {
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = timeout;
         
-        #[cfg(feature = "serial")]
         if let Some(ref mut port) = self.port {
             let _ = port.set_timeout(timeout);
         }
     }
     
     /// Get available ports
-    #[cfg(feature = "serial")]
     pub fn available_ports() -> std::io::Result<Vec<String>> {
         serialport::available_ports()
             .map(|ports| {
@@ -175,74 +153,42 @@ impl Serial {
                     })
                     .collect()
             })
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
     }
 }
 
 impl Read for Serial {
-    fn read(&mut self, _buf: &mut [u8]) -> std::io::Result<usize> {
-        #[cfg(feature = "serial")]
-        {
-            if let Some(ref mut port) = self.port {
-                port.read(buf)
-            } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::NotConnected,
-                    "serial port not connected"
-                ))
-            }
-        }
-        
-        #[cfg(not(feature = "serial"))]
-        {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        if let Some(ref mut port) = self.port {
+            port.read(buf)
+        } else {
             Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "serial support not enabled"
+                std::io::ErrorKind::NotConnected,
+                "serial port not connected"
             ))
         }
     }
 }
 
 impl Write for Serial {
-    fn write(&mut self, _buf: &[u8]) -> std::io::Result<usize> {
-        #[cfg(feature = "serial")]
-        {
-            if let Some(ref mut port) = self.port {
-                port.write(buf)
-            } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::NotConnected,
-                    "serial port not connected"
-                ))
-            }
-        }
-        
-        #[cfg(not(feature = "serial"))]
-        {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if let Some(ref mut port) = self.port {
+            port.write(buf)
+        } else {
             Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "serial support not enabled"
+                std::io::ErrorKind::NotConnected,
+                "serial port not connected"
             ))
         }
     }
     
     fn flush(&mut self) -> std::io::Result<()> {
-        #[cfg(feature = "serial")]
-        {
-            if let Some(ref mut port) = self.port {
-                port.flush()
-            } else {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::NotConnected,
-                    "serial port not connected"
-                ))
-            }
-        }
-        
-        #[cfg(not(feature = "serial"))]
-        {
+        if let Some(ref mut port) = self.port {
+            port.flush()
+        } else {
             Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "serial support not enabled"
+                std::io::ErrorKind::NotConnected,
+                "serial port not connected"
             ))
         }
     }
@@ -254,6 +200,7 @@ impl std::fmt::Debug for Serial {
             .field("port_name", &self.port_name)
             .field("baud_rate", &self.baud_rate)
             .field("timeout", &self.timeout)
+            .field("xon_xoff", &self.xon_xoff)
             .finish()
     }
 }

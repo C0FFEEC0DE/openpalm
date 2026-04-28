@@ -1,5 +1,7 @@
 # OpenPalm Implementation Plan
 
+> **Status: COMPLETE** — All phases done. This document is a historical reference of the porting effort.
+
 ## Overview
 Rust port of pilot-link library (~30,000 lines of C code). This document tracks the progress of porting each component.
 

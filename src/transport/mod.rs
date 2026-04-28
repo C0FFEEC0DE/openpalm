@@ -2,12 +2,15 @@
 //!
 //! This module provides transport abstractions for serial, USB, and Bluetooth connections.
 
-mod serial;
+#[cfg(feature = "serial")]
+pub mod serial;
+#[cfg(feature = "usb")]
 pub mod usb;
 
 #[cfg(feature = "serial")]
-pub use serial::{Serial, SerialParams};
-pub use usb::{Usb, UsbParams};
+pub use serial::Serial;
+#[cfg(feature = "usb")]
+pub use usb::Usb;
 
 use std::io::{Read, Write};
 use async_trait::async_trait;
@@ -81,7 +84,7 @@ pub trait AsyncConnection: Send + Sync {
 }
 
 /// Adapter to convert sync Connection to AsyncConnection
-/// 
+///
 /// This allows sync connections to be used with async code.
 /// Uses interior mutability for thread safety.
 pub struct AsyncConnectionAdapter<T> {
@@ -91,9 +94,11 @@ pub struct AsyncConnectionAdapter<T> {
 impl<T> AsyncConnectionAdapter<T> {
     /// Create a new async adapter from a sync connection
     pub fn new(inner: T) -> Self {
-        Self { inner: std::sync::Mutex::new(inner) }
+        Self {
+            inner: std::sync::Mutex::new(inner),
+        }
     }
-    
+
     /// Consume adapter and return inner connection
     pub fn into_inner(self) -> T {
         self.inner.into_inner().unwrap()
@@ -106,12 +111,12 @@ impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<
         let mut guard = self.inner.lock().unwrap();
         guard.connect()
     }
-    
+
     async fn disconnect_async(&mut self) -> crate::error::Result<()> {
         let mut guard = self.inner.lock().unwrap();
         guard.disconnect()
     }
-    
+
     fn is_connected(&self) -> bool {
         if let Ok(guard) = self.inner.lock() {
             guard.is_connected()
@@ -119,17 +124,17 @@ impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<
             false
         }
     }
-    
+
     async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let mut guard = self.inner.lock().unwrap();
         guard.read(buf)
     }
-    
+
     async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let mut guard = self.inner.lock().unwrap();
         guard.write(buf)
     }
-    
+
     async fn flush_async(&mut self) -> std::io::Result<()> {
         let mut guard = self.inner.lock().unwrap();
         guard.flush()
@@ -140,15 +145,15 @@ impl<T: Connection + ?Sized> Connection for Box<T> {
     fn connect(&mut self) -> crate::error::Result<()> {
         (**self).connect()
     }
-    
+
     fn disconnect(&mut self) -> crate::error::Result<()> {
         (**self).disconnect()
     }
-    
+
     fn is_connected(&self) -> bool {
         (**self).is_connected()
     }
-    
+
     fn state(&self) -> ConnectionState {
         (**self).state()
     }
@@ -173,7 +178,7 @@ impl MockConnection {
             read_pos: 0,
         }
     }
-    
+
     /// Create with initial read data
     pub fn with_data(data: Vec<u8>) -> Self {
         Self {
@@ -183,18 +188,18 @@ impl MockConnection {
             read_pos: 0,
         }
     }
-    
+
     /// Get data written to this connection
     pub fn written_data(&self) -> &[u8] {
         &self.write_buffer
     }
-    
+
     /// Set data to be read
     pub fn set_read_data(&mut self, data: Vec<u8>) {
         self.read_buffer = data;
         self.read_pos = 0;
     }
-    
+
     /// Clear write buffer
     pub fn clear_write_buffer(&mut self) {
         self.write_buffer.clear();
@@ -212,12 +217,12 @@ impl Connection for MockConnection {
         self.connected = true;
         Ok(())
     }
-    
+
     fn disconnect(&mut self) -> crate::error::Result<()> {
         self.connected = false;
         Ok(())
     }
-    
+
     fn is_connected(&self) -> bool {
         self.connected
     }
@@ -228,14 +233,14 @@ impl Read for MockConnection {
         if !self.connected {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
-                "mock connection not connected"
+                "mock connection not connected",
             ));
         }
-        
+
         if self.read_pos >= self.read_buffer.len() {
             return Ok(0);
         }
-        
+
         let len = std::cmp::min(buf.len(), self.read_buffer.len() - self.read_pos);
         buf[..len].copy_from_slice(&self.read_buffer[self.read_pos..self.read_pos + len]);
         self.read_pos += len;
@@ -248,14 +253,14 @@ impl Write for MockConnection {
         if !self.connected {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
-                "mock connection not connected"
+                "mock connection not connected",
             ));
         }
-        
+
         self.write_buffer.extend_from_slice(buf);
         Ok(buf.len())
     }
-    
+
     fn flush(&mut self) -> std::io::Result<()> {
         Ok(())
     }

@@ -1,5 +1,7 @@
 # Архитектура libpisock/libpisync для портирования на Rust
 
+> **Reference document** — Deep analysis of the original pilot-link C codebase. Used during the initial port. Port implementation is complete; this remains for context.
+
 ## Обзор
 
 **pilot-link** - историческая C-библиотека для коммуникации с Palm OS устройствами через протокол HotSync.

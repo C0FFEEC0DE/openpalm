@@ -3,13 +3,15 @@
 //! This module provides the pi_socket_t abstraction from pilot-link.
 
 use crate::error::{PilotError, Result};
-use crate::transport::{Connection, ConnectionState, MockConnection};
+use crate::transport::{Connection, ConnectionState};
 #[cfg(feature = "serial")]
 use crate::transport::Serial;
 #[cfg(feature = "usb")]
 use crate::transport::Usb;
+use crate::transport::MockConnection;
 use crate::protocol::dlp::{DlpClient, ProtocolVersion};
 use std::io::{Read, Write};
+use std::sync::atomic::{AtomicI32, Ordering};
 
 /// Socket state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -71,7 +73,7 @@ impl Default for SocketOptions {
 }
 
 /// Inner transport connection (re-exported for DLP client)
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub enum TransportConnection {
     #[cfg(feature = "serial")]
     Serial(Serial),
@@ -90,7 +92,7 @@ impl TransportConnection {
             TransportConnection::Mock(m) => m.is_connected(),
         }
     }
-    
+
     fn connect(&mut self) -> Result<()> {
         match self {
             #[cfg(feature = "serial")]
@@ -100,7 +102,7 @@ impl TransportConnection {
             TransportConnection::Mock(m) => m.connect(),
         }
     }
-    
+
     fn disconnect(&mut self) -> Result<()> {
         match self {
             #[cfg(feature = "serial")]
@@ -134,7 +136,7 @@ impl Write for TransportConnection {
             TransportConnection::Mock(m) => m.write(buf),
         }
     }
-    
+
     fn flush(&mut self) -> std::io::Result<()> {
         match self {
             #[cfg(feature = "serial")]
@@ -173,12 +175,8 @@ pub struct PilotSocket {
 impl PilotSocket {
     /// Create a new socket
     pub fn new(family: ProtocolFamily, socket_type: SocketType) -> Self {
-        static mut SOCKET_COUNTER: i32 = 0;
-        
-        let sd = unsafe {
-            SOCKET_COUNTER += 1;
-            SOCKET_COUNTER
-        };
+        static SOCKET_COUNTER: AtomicI32 = AtomicI32::new(0);
+        let sd = SOCKET_COUNTER.fetch_add(1, Ordering::Relaxed) + 1;
         
         Self {
             state: SocketState::Closed,
@@ -195,25 +193,21 @@ impl PilotSocket {
     }
     
     /// Create a stream socket for serial
-    pub fn serial(_port: &str) -> Self {
+    #[cfg(feature = "serial")]
+    pub fn serial(port: &str) -> Self {
         let mut socket = Self::new(ProtocolFamily::Serial, SocketType::Stream);
-        #[cfg(feature = "serial")]
-        {
-            socket.transport = Some(TransportConnection::Serial(Serial::from_port(port)));
-        }
+        socket.transport = Some(TransportConnection::Serial(Serial::from_port(port)));
         socket
     }
-    
+
     /// Create a stream socket for USB
+    #[cfg(feature = "usb")]
     pub fn usb() -> Self {
         let mut socket = Self::new(ProtocolFamily::Usb, SocketType::Stream);
-        #[cfg(feature = "usb")]
-        {
-            socket.transport = Some(TransportConnection::Usb(Usb::new_palm()));
-        }
+        socket.transport = Some(TransportConnection::Usb(Usb::new_palm()));
         socket
     }
-    
+
     /// Create a mock socket for testing
     pub fn mock() -> Self {
         let mut socket = Self::new(ProtocolFamily::Serial, SocketType::Stream);
@@ -230,37 +224,38 @@ impl PilotSocket {
         if self.state != SocketState::Closed {
             return Err(PilotError::SockInvalid);
         }
-        
-        let transport = self.transport.as_mut()
+
+        let mut transport = self.transport.take()
             .ok_or(PilotError::SockInvalid)?;
-        
+
         transport.connect()?;
         self.state = SocketState::Connected;
-        
-        // Create DLP client with the transport
-        if let Some(ref transport) = self.transport {
-            self.dlp_client = Some(DlpClient::new(transport.clone()));
-        }
-        
+
+        self.dlp_client = Some(DlpClient::new(transport));
+
         Ok(())
     }
-    
+
     /// Disconnect from device
     pub fn disconnect(&mut self) -> Result<()> {
-        if let Some(ref mut transport) = self.transport {
+        if let Some(ref client) = self.dlp_client {
+            let arc = client.transport();
+            let mut transport = arc.lock().unwrap();
             transport.disconnect()?;
         }
-        
+
         self.dlp_client = None;
         self.state = SocketState::Closed;
-        
+
         Ok(())
     }
-    
+
     /// Check if socket is connected
     pub fn is_connected(&self) -> bool {
-        self.state == SocketState::Connected && 
-            self.transport.as_ref().map_or(false, |t| t.is_connected())
+        self.state == SocketState::Connected
+            && self.dlp_client.as_ref().map_or(false, |c| {
+                c.transport().lock().map(|t| t.is_connected()).unwrap_or(false)
+            })
     }
     
     /// Get connection state

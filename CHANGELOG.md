@@ -8,24 +8,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `src/types/date.rs` - Complete `set_date()` implementation with proper Palm epoch conversion
-- `src/database.rs` - Added `category` field to `Record` struct for sync support
-- `src/utils/md5.rs` - Real MD5 implementation using `md5` crate (was stub)
+- `src/transport/usb.rs` — Restored `Drop` impl for USB cleanup on drop/panic
+- `src/transport/usb.rs` — Restored `device_info()`, `vendor_id()`, `product_id()` helpers
+- `src/transport/serial.rs` — Restored `flow_control` field to `SerialParams` with hardware flow control
 
 ### Fixed
-- `src/types/date.rs` - Fixed `set_date()` to properly convert year/month/day to Palm timestamp
-- `src/types/date.rs` - Fixed `get_date()` to work with Palm epoch instead of Unix epoch
-- `src/types/date.rs` - Added day validation in `set_date()` to prevent invalid dates
-- `src/sync.rs` - Fixed TODO: now extracts category from `Record.category`
-- `src/utils/md5.rs` - Replaced stub with real MD5 using RFC 1321 implementation
-- `src/vfs/mod.rs` - Removed redundant `VfsImpl` stubs (VFS already in `DlpClient`)
-- `src/protocol/dlp.rs` - Added missing `category` field in `Record` initialization
+- **Critical:** `PilotSocket::serial()` — Now actually creates and stores the transport connection
+- **Critical:** `PilotSocket::usb()` — Now actually creates and stores the transport connection
+- **Critical:** `PilotSocket::mock()` — Restored with `MockConnection` (was deleted entirely)
+- **Critical:** `src/transport/usb.rs` — Fixed USB endpoint addresses: 0x81 (IN), 0x02 (OUT)
+- **Critical:** `src/transport/usb.rs` — Restored `release_interface` in `disconnect()`
+- `src/transport/usb.rs` — Reverted `libusb` 0.2 to `libusb1-sys` 0.7 (vendored) for correct lifecycle management
+- `src/transport/serial.rs` — Fixed `available_ports()` return type (was `serialport::Error` vs `std::io::Error`)
+- `src/transport/mod.rs` — Restored `MockConnection`, `AsyncConnectionAdapter<T>`, `Connection for Box<T>` blanket impl
+- `src/protocol/socket.rs` — Removed `#[derive(Clone)]` from `TransportConnection`, using `Option::take()` for ownership transfer
+- `src/protocol/socket.rs` — Rerouted `disconnect()` and `is_connected()` through `DlpClient` after transport moved
 
 ### Changed
-- `Cargo.toml` - Added `md5 = "0.7"` dependency for cryptographic MD5
+- `Cargo.toml` — Restored `[features]` with `serial`/`usb` feature flags, deps made optional
 
-### Removed
-- `src/vfs/mod.rs` - Removed unused `VfsImpl` struct and 127 lines of stub code
+### Architecture
+- Transport ownership: `TransportConnection` no longer requires `Clone`. Moved via `Option::take()` from `PilotSocket` into `DlpClient::new()`.
 
 ---
 
@@ -91,7 +94,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 - `docs/ARCHITECTURE.md` - System architecture overview
 - `docs/IMPLEMENTATION_PLAN.md` - Development progress tracking
-- `docs/FIX_PLAN.md` - Known issues and fix tracking
 - `README.md` - Project documentation with examples
 - `CHANGELOG.md` - Version history
 
@@ -104,23 +106,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Cargo.toml` - Full dependency configuration with async support
 - `.gitignore` - Git exclusions for build artifacts
 - `.github/workflows/ci.yml` - GitHub Actions CI/CD pipeline
-
-### Dependencies
-- tokio (async runtime)
-- serialport (serial communication)
-- libusb1-sys (USB support)
-- bitflags, bytes, thiserror, anyhow
-- tracing, async-trait, once_cell
-
----
-
-## [Unreleased]
-
-### Planned
-- VFS implementation (currently stubs)
-- Async transport implementations
-- Real device testing
-- CLI tool
-- Documentation for DLP functions
 
 [0.1.0]: https://github.com/chaos-weaver/openpalm/releases/tag/v0.1.0

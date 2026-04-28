@@ -19,14 +19,14 @@ path = "src/lib.rs"
 tokio = { version = "1", features = ["full"] }
 
 # Serial port
-serialport = "4"
+serialport = { version = "4", optional = true }
 
 # USB communication (requires libusb-1.0 development libraries)
 # On Ubuntu/Debian: sudo apt install libusb-1.0-0-dev
 # On Fedora/RHEL: sudo dnf install libusb1-devel
 # On macOS: comes with OS
 # On Windows: use Zadig to install WinUSB driver
-libusb1-sys = { version = "0.7", features = ["vendored"] }
+libusb1-sys = { version = "0.7", features = ["vendored"], optional = true }
 
 # Data structures
 bytes = "1"
@@ -50,6 +50,11 @@ async-trait = "0.1"
 
 # Utilities
 once_cell = "1"
+
+[features]
+default = ["serial", "usb"]
+serial = ["dep:serialport"]
+usb = ["dep:libusb1-sys"]
 
 [dev-dependencies]
 # Testing
