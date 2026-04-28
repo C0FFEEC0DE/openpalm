@@ -39,6 +39,7 @@ anyhow = "1"
 # Utilities
 uuid = { version = "1", features = ["v4"] }
 time = "0.3"
+md5 = "0.7"
 
 # Logging
 tracing = "0.1"

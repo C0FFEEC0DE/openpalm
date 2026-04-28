@@ -44,26 +44,9 @@ impl Md5Hash {
 }
 
 /// Calculate MD5 hash of data
-/// 
-/// This is a simplified implementation for Palm OS data.
-/// For production use, consider using the `md5` crate.
 pub fn md5(data: &[u8]) -> Md5Hash {
-    // Simple stub - in production use md5 crate
-    // This creates a deterministic but not cryptographically secure hash
-    let mut hash = [0u8; 16];
-    
-    for (i, &byte) in data.iter().enumerate() {
-        hash[i % 16] ^= byte;
-        // Rotate
-        hash[i % 16] = hash[i % 16].rotate_left(1);
-    }
-    
-    // Fill remaining with simple pattern
-    for i in data.len()..16 {
-        hash[i] = (i as u8).wrapping_add(hash[(i + 7) % 16]);
-    }
-    
-    Md5Hash(hash)
+    let digest = md5::compute(data);
+    Md5Hash(digest.0)
 }
 
 /// Calculate MD5 checksum (returns hex string)
@@ -87,6 +70,16 @@ mod tests {
         let hash = Md5Hash([0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                           0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10]);
         assert_eq!(format!("{}", hash), "0102030405060708090a0b0c0d0e0f10");
+    }
+
+    #[test]
+    fn test_md5_known_values() {
+        // Test against known MD5 values
+        let hash = md5(b"");
+        assert_eq!(hash.to_hex(), "d41d8cd98f00b204e9800998ecf8427e");
+        
+        let hash = md5(b"hello");
+        assert_eq!(hash.to_hex(), "5d41402abc4b2a76b9719d911017c592");
     }
 
     #[test]

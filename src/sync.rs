@@ -87,7 +87,7 @@ impl SyncRecord {
     pub fn from_record(record: &Record) -> Self {
         Self {
             id: record.id,
-            category: 0, // TODO: extract category
+            category: record.category,
             attributes: record.attributes.bits(),
             data: record.data.clone(),
             mod_num: 0,

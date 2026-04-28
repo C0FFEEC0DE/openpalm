@@ -87,6 +87,8 @@ pub struct Record {
     pub index: u32,
     /// Record attributes
     pub attributes: RecordFlags,
+    /// Category ID (0-15, stored in lower 4 bits of attributes)
+    pub category: u8,
     /// Record data
     pub data: Vec<u8>,
     /// Sort key (optional)
@@ -100,6 +102,7 @@ impl Record {
             id,
             index: 0,
             attributes: RecordFlags::empty(),
+            category: 0,
             data,
             sort_key: None,
         }

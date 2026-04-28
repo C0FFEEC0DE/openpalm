@@ -1222,6 +1222,7 @@ impl DlpClient {
             id: 0,
             index: 0,
             attributes: RecordFlags::empty(),
+            category: 0,
             sort_key: None,
         };
         
@@ -1242,6 +1243,7 @@ impl DlpClient {
             id: 0,
             index,
             attributes: RecordFlags::empty(),
+            category: 0,
             sort_key: None,
         })
     }
@@ -1260,6 +1262,7 @@ impl DlpClient {
             id,
             index: 0,
             attributes: RecordFlags::empty(),
+            category: 0,
             sort_key: None,
         })
     }

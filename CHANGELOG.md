@@ -8,24 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- `src/utils/strings.rs` - String parsing utilities for Palm OS records
-  - `parse_pstring` / `pack_pstring` - null-terminated string functions
-  - `parse_lpstring` / `pack_lpstring` - Pascal-style string functions
-  - `parse_string_list` / `pack_string_list` - string list functions
-  - `pstring_size` / `string_list_size` - size calculation helpers
+- `src/types/date.rs` - Complete `set_date()` implementation with proper Palm epoch conversion
+- `src/database.rs` - Added `category` field to `Record` struct for sync support
+- `src/utils/md5.rs` - Real MD5 implementation using `md5` crate (was stub)
 
 ### Fixed
-- `src/records/expense.rs` - Full attendees parsing support
-- `src/records/expense.rs` - Replaced magic number with `EXPENSE_MIN_SIZE` constant
-- `src/protocol/slp.rs` - Fixed `SlpFlags` builder pattern with proper `set_*` methods
-- `src/transport/usb.rs` - Complete rewrite with proper error handling
-- `src/transport/usb.rs` - Added `Drop` implementation for automatic cleanup
-- `src/sync.rs` - Removed unused `RecordQueue` struct
+- `src/types/date.rs` - Fixed `set_date()` to properly convert year/month/day to Palm timestamp
+- `src/types/date.rs` - Fixed `get_date()` to work with Palm epoch instead of Unix epoch
+- `src/types/date.rs` - Added day validation in `set_date()` to prevent invalid dates
+- `src/sync.rs` - Fixed TODO: now extracts category from `Record.category`
+- `src/utils/md5.rs` - Replaced stub with real MD5 using RFC 1321 implementation
+- `src/vfs/mod.rs` - Removed redundant `VfsImpl` stubs (VFS already in `DlpClient`)
+- `src/protocol/dlp.rs` - Added missing `category` field in `Record` initialization
 
 ### Changed
-- `src/utils/mod.rs` - Re-export string utility functions
-- `src/lib.rs` - Export string utility functions at library level
-- All record modules now use shared string utilities instead of local implementations
+- `Cargo.toml` - Added `md5 = "0.7"` dependency for cryptographic MD5
+
+### Removed
+- `src/vfs/mod.rs` - Removed unused `VfsImpl` struct and 127 lines of stub code
 
 ---
 

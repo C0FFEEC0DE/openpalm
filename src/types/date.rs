@@ -82,46 +82,87 @@ impl PalmDateTime {
     }
 
     /// Set date components (year, month, day)
+    /// 
+    /// Note: Time components are set to 0:00:00
     pub fn set_date(&mut self, year: u16, month: u8, day: u8) {
-        // This creates a Palm timestamp from components
-        // For simplicity, using a placeholder - real implementation would convert
-        // based on Palm epoch
-        let _ = (year, month, day);
+        // Validate inputs
+        if year < 1904 || month < 1 || month > 12 || day < 1 {
+            return;
+        }
+        
+        // Validate day against month
+        let max_day = days_in_month(year, month);
+        if day > max_day {
+            return;
+        }
+        
+        // Count days from Palm epoch (Jan 1, 1904) to given date
+        let mut total_days: i64 = 0;
+        
+        // Days for years from 1904 to given year
+        for y in 1904..year as i64 {
+            total_days += if is_leap_year(y as u16) { 366 } else { 365 };
+        }
+        
+        // Days for months before given month
+        let days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        for m in 1..month as i64 {
+            total_days += days_in_months[(m - 1) as usize] as i64;
+        }
+        
+        // Adjust February for leap year
+        if month == 2 && is_leap_year(year) {
+            total_days += 1;
+        }
+        
+        // Add days (Palm timestamp is 0-indexed, day parameter is 1-indexed)
+        total_days += day as i64;
+        
+        // Convert to seconds (Palm timestamp is seconds since Palm epoch)
+        self.0 = (total_days * 86400) as u32;
     }
 
     /// Get date components (year, month, day)
     pub fn get_date(&self) -> (u16, u8, u8) {
-        // Simplified - returns (year, month, day) from Palm timestamp
-        // This is a placeholder for proper conversion
         if self.is_undefined() {
             return (0, 0, 0);
         }
-        // Convert Palm time to Unix and then extract date components
-        let unix_secs = self.to_unix() as i64;
-        let days = unix_secs / 86400;
-        // Approximate calculation from Unix epoch
-        let mut year: i64 = 1970;
-        let mut remaining_days = days;
-        while remaining_days >= 365 {
-            let leap = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) { 366 } else { 365 };
-            if remaining_days >= leap {
-                remaining_days -= leap;
+        
+        // Convert Palm timestamp to days since Palm epoch (Jan 1, 1904)
+        let mut days = (self.0 as i64) / 86400;
+        
+        // Calculate year from Palm epoch
+        let mut year: i64 = 1904;
+        while days >= 365 {
+            let leap = if is_leap_year(year as u16) { 366 } else { 365 };
+            if days >= leap {
+                days -= leap;
                 year += 1;
             } else {
                 break;
             }
         }
+        
+        // Days in each month (non-leap year)
+        let days_in_months: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+        
+        // Calculate month (1-indexed)
         let mut month: i64 = 1;
-        let days_in_months = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-        for (i, &days_in_month) in days_in_months.iter().enumerate() {
-            if remaining_days < days_in_month as i64 {
+        for (i, &dim) in days_in_months.iter().enumerate() {
+            // Use 29 days for February in leap year
+            let days_this_month = if i == 1 && is_leap_year(year as u16) { 29 } else { dim };
+            
+            if days < days_this_month {
+                // We're in this month
                 break;
             }
-            remaining_days -= days_in_month as i64;
-            month = i as i64 + 1;
+            days -= days_this_month;
+            month = i as i64 + 2; // Next month
         }
-        let day = remaining_days + 1;
-        (year as u16, month as u8, day as u8)
+        
+        let day = (days + 1) as u8; // Convert from 0-indexed to 1-indexed
+        
+        (year as u16, month as u8, day)
     }
 
     /// Get current time
@@ -234,3 +275,27 @@ mod tests {
         assert_eq!(days_in_month(2023, 2), 28);
     }
 }
+
+    #[test]
+    fn test_set_date() {
+        // Verify set_date produces a valid Palm timestamp
+        let undefined_val = PalmDateTime::undefined().to_palm();
+        
+        // Valid date should work
+        let mut dt = PalmDateTime::undefined();
+        dt.set_date(2024, 1, 1);
+        assert_ne!(dt.to_palm(), undefined_val, "set_date should modify the value");
+        
+        // Invalid dates should not modify the value
+        let mut dt = PalmDateTime::undefined();
+        dt.set_date(2024, 13, 1); // Invalid month
+        assert_eq!(dt.to_palm(), undefined_val, "Invalid month should not change value");
+        
+        let mut dt = PalmDateTime::undefined();
+        dt.set_date(2024, 1, 32); // Invalid day
+        assert_eq!(dt.to_palm(), undefined_val, "Invalid day should not change value");
+        
+        let mut dt = PalmDateTime::undefined();
+        dt.set_date(1903, 1, 1); // Before Palm epoch
+        assert_eq!(dt.to_palm(), undefined_val, "Year before 1904 should not change value");
+    }
