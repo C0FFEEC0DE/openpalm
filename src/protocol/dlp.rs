@@ -418,7 +418,7 @@ impl DlpArg {
         let data_len = self.data.len();
         if data_len <= DLP_ARG_TINY_LEN && self.id < 0x80 {
             1 + data_len // tiny: 1 byte header (len only, id implicit)
-        } else if data_len <= DLP_ARG_SHORT_LEN && self.id < 0x40 {
+        } else if data_len <= DLP_ARG_SHORT_LEN {
             3 + data_len // short: 2 byte header + 1 byte id
         } else {
             5 + data_len // long: 4 byte header + 1 byte id
@@ -440,7 +440,7 @@ impl DlpArg {
             result.push(self.id);
         } else {
             // Long format: 0b01TTTTTT | TTTTTTTT | TTTTTTTT | TTTTTTTT | id
-            result.push(0x40 | ((data_len >> 24) as u8));
+            result.push(0xC0 | ((data_len >> 24) as u8));
             result.push((data_len >> 16) as u8);
             result.push((data_len >> 8) as u8);
             result.push(data_len as u8);
@@ -836,14 +836,25 @@ impl DlpClient {
         let mut body = Vec::new();
         let max_body_size = 0x1000000usize; // 16MB limit (supports DLP 1.4 >64KB extended functions)
         let mut buf = [0u8; 1024];
+        const MAX_WOULDBLOCK_RETRIES: u32 = 10_000;
+        let mut wouldblock_count: u32 = 0;
         loop {
             if body.len() >= max_body_size {
                 break;
             }
             match Read::read(&mut *transport, &mut buf) {
                 Ok(0) => break,
-                Ok(n) => body.extend_from_slice(&buf[..n]),
-                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => continue,
+                Ok(n) => {
+                    body.extend_from_slice(&buf[..n]);
+                    wouldblock_count = 0;
+                }
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                    wouldblock_count += 1;
+                    if wouldblock_count > MAX_WOULDBLOCK_RETRIES {
+                        return Err(PilotError::SockTimeout);
+                    }
+                    continue;
+                }
                 Err(_) => return Err(PilotError::SockIo),
             }
         }
@@ -1144,32 +1155,44 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        // Parse database list from response
+        // Parse database list from response.
+        // Each database entry spans multiple consecutive args. The exact count
+        // varies by DLP version (typically 13-14 args per entry). We parse in
+        // chunks of ARGS_PER_DB, with per-field fallbacks for version differences.
+        const ARGS_PER_DB: usize = 14;
         let mut databases = Vec::new();
-        
-        for i in 0..response.args.len() {
-            if let Ok(name) = response.get_string(i) {
-                databases.push(DatabaseInfo {
-                    flags: DatabaseFlags::empty(),
-                    db_type: FourCharCode { 0: 0 },
-                    creator: FourCharCode { 0: 0 },
-                    card_no: card_no as u16,
-                    db_id: 0,
-                    created: PalmDateTime::now(),
-                    modified: PalmDateTime::now(),
-                    backup_date: PalmDateTime::now(),
-                    mod_num: 0,
-                    app_info_dirty: false,
-                    sort_info_dirty: false,
-                    total_bytes: 0,
-                    data_bytes: 0,
-                    num_records: 0,
-                    unique_id_seed: 0,
-                    name,
-                });
-            }
+        let mut db_offset = 0;
+
+        while db_offset < response.args.len() {
+            let info = DatabaseInfo {
+                name:            response.get_string(db_offset).unwrap_or_default(),
+                flags:           DatabaseFlags::from_bits_truncate(
+                                    response.get_u16(db_offset + 1).unwrap_or(0)),
+                db_type:         FourCharCode::from_u32(
+                                    response.get_u32(db_offset + 2).unwrap_or(0)),
+                creator:         FourCharCode::from_u32(
+                                    response.get_u32(db_offset + 3).unwrap_or(0)),
+                card_no:         response.get_u16(db_offset + 4).unwrap_or(0),
+                db_id:           response.get_u32(db_offset + 5).unwrap_or(0),
+                created:         PalmDateTime::from_palm_time(
+                                    response.get_u32(db_offset + 6).unwrap_or(0)),
+                modified:        PalmDateTime::from_palm_time(
+                                    response.get_u32(db_offset + 7).unwrap_or(0)),
+                backup_date:     PalmDateTime::from_palm_time(
+                                    response.get_u32(db_offset + 8).unwrap_or(0)),
+                mod_num:         response.get_u32(db_offset + 9).unwrap_or(0),
+                total_bytes:     response.get_u32(db_offset + 10).unwrap_or(0),
+                data_bytes:      response.get_u32(db_offset + 11).unwrap_or(0),
+                num_records:     response.get_u16(db_offset + 12).unwrap_or(0) as u32,
+                unique_id_seed:  response.get_u32(db_offset + 13).unwrap_or(0),
+                app_info_dirty:  false,
+                sort_info_dirty: false,
+            };
+
+            databases.push(info);
+            db_offset += ARGS_PER_DB;
         }
-        
+
         Ok(databases)
     }
 
@@ -1280,23 +1303,38 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
 
         let num_recs = response.get_u32(0).unwrap_or(0);
-        let db_info = DatabaseInfo {
-            flags: DatabaseFlags::empty(),
-            db_type: FourCharCode { 0: 0 },
-            creator: FourCharCode { 0: 0 },
-            card_no: card_no as u16,
-            db_id: handle as u32,
-            created: PalmDateTime::now(),
-            modified: PalmDateTime::now(),
-            backup_date: PalmDateTime::now(),
-            mod_num: 0,
-            app_info_dirty: false,
-            sort_info_dirty: false,
-            total_bytes: 0,
-            data_bytes: 0,
-            num_records: num_recs,
-            unique_id_seed: 0,
-            name: String::new(),
+        let db_info = if response.args.len() > 1 {
+            DatabaseInfo {
+                name:            response.get_string(1).unwrap_or_default(),
+                flags:           DatabaseFlags::from_bits_truncate(
+                                    response.get_u16(2).unwrap_or(0)),
+                db_type:         FourCharCode::from_u32(
+                                    response.get_u32(3).unwrap_or(0)),
+                creator:         FourCharCode::from_u32(
+                                    response.get_u32(4).unwrap_or(0)),
+                card_no:         response.get_u16(5).unwrap_or(card_no as u16),
+                db_id:           response.get_u32(6).unwrap_or(handle as u32),
+                created:         PalmDateTime::from_palm_time(
+                                    response.get_u32(7).unwrap_or(0)),
+                modified:        PalmDateTime::from_palm_time(
+                                    response.get_u32(8).unwrap_or(0)),
+                backup_date:     PalmDateTime::from_palm_time(
+                                    response.get_u32(9).unwrap_or(0)),
+                mod_num:         response.get_u32(10).unwrap_or(0),
+                total_bytes:     response.get_u32(11).unwrap_or(0),
+                data_bytes:      response.get_u32(12).unwrap_or(0),
+                num_records:     num_recs,
+                unique_id_seed:  response.get_u32(13).unwrap_or(0),
+                app_info_dirty:  false,
+                sort_info_dirty: false,
+            }
+        } else {
+            DatabaseInfo {
+                num_records: num_recs,
+                card_no: card_no as u16,
+                db_id: handle as u32,
+                ..Default::default()
+            }
         };
         
         Ok((num_recs, db_info))
@@ -1315,13 +1353,40 @@ impl DlpClient {
         req.add_u32(db_type.to_u32());
         req.add_u32(creator.to_u32());
         let response = self.send_request(&req).await?;
-        if response.args.len() < 8 {
+        // FindDB response args per DB: local_id(u32), more_data(u8), flags(u16),
+        //   db_type(u32), creator(u32), card_no(u16), db_id(u32), created(u32),
+        //   modified(u32), backup_date(u32), mod_num(u32), total_bytes(u32),
+        //   data_bytes(u32), num_records(u16), unique_id_seed(u32), name(string)
+        if response.args.is_empty() {
             return Ok(None);
         }
-        Ok(Some(DatabaseInfo {
-            name: name.to_string(),
-            ..Default::default()
-        }))
+        // The database info begins at arg 0 (local_id), name is the last arg
+        let num_args = response.args.len();
+        let db_info = DatabaseInfo {
+            name:            response.get_string(num_args - 1).unwrap_or_else(|_| name.to_string()),
+            flags:           DatabaseFlags::from_bits_truncate(
+                                response.get_u16(2).unwrap_or(0)),
+            db_type:         FourCharCode::from_u32(
+                                response.get_u32(3).unwrap_or(0)),
+            creator:         FourCharCode::from_u32(
+                                response.get_u32(4).unwrap_or(0)),
+            card_no:         response.get_u16(5).unwrap_or(card_no as u16),
+            db_id:           response.get_u32(6).unwrap_or(0),
+            created:         PalmDateTime::from_palm_time(
+                                response.get_u32(7).unwrap_or(0)),
+            modified:        PalmDateTime::from_palm_time(
+                                response.get_u32(8).unwrap_or(0)),
+            backup_date:     PalmDateTime::from_palm_time(
+                                response.get_u32(9).unwrap_or(0)),
+            mod_num:         response.get_u32(10).unwrap_or(0),
+            total_bytes:     response.get_u32(11).unwrap_or(0),
+            data_bytes:      response.get_u32(12).unwrap_or(0),
+            num_records:     response.get_u16(13).unwrap_or(0) as u32,
+            unique_id_seed:  response.get_u32(14).unwrap_or(0),
+            app_info_dirty:  false,
+            sort_info_dirty: false,
+        };
+        Ok(Some(db_info))
     }
 
     /// Set database info (flags, dates, type, creator)
@@ -1382,12 +1447,15 @@ impl DlpClient {
         }
         
         let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let id = response.get_u32(1).unwrap_or(0);
+        let index = response.get_u32(2).unwrap_or(0);
+        let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
         let record = Record {
             data,
-            id: 0,
-            index: 0,
-            attributes: RecordFlags::empty(),
-            category: 0,
+            id,
+            index,
+            attributes: attrs,
+            category: attrs.bits() & 0x0F,
             sort_key: None,
         };
         
@@ -1403,12 +1471,14 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
         
         let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let id = response.get_u32(1).unwrap_or(0);
+        let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
             data,
-            id: 0,
+            id,
             index,
-            attributes: RecordFlags::empty(),
-            category: 0,
+            attributes: attrs,
+            category: attrs.bits() & 0x0F,
             sort_key: None,
         })
     }
@@ -1422,12 +1492,13 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
         
         let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
             data,
             id,
             index: 0,
-            attributes: RecordFlags::empty(),
-            category: 0,
+            attributes: attrs,
+            category: attrs.bits() & 0x0F,
             sort_key: None,
         })
     }
@@ -1525,10 +1596,11 @@ impl DlpClient {
         let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
+        let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
         Ok(Some(Record {
             id,
             index,
-            attributes: RecordFlags::empty(),
+            attributes: attrs,
             category,
             data,
             sort_key: None,
@@ -1547,10 +1619,11 @@ impl DlpClient {
         let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
+        let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
         Ok(Some(Record {
             id,
             index,
-            attributes: RecordFlags::DIRTY,
+            attributes: attrs,
             category,
             data,
             sort_key: None,
@@ -2488,13 +2561,38 @@ mod tests {
         let short = DlpArg::new(0x20, vec![0; 300]);
         assert_eq!(short.encode()[0] & 0xC0, 0x80);
 
-        // Long: 0x40 marker in first byte
+        // Long: 0xC0 marker in first byte (bits 7:6 = 11)
         let long = DlpArg::new(0x20, vec![0; 0x10000]);
-        assert_ne!(long.encode()[0] & 0x40, 0);
+        assert_eq!(long.encode()[0] & 0xC0, 0xC0, "long format requires bits 7:6 both set");
 
         // Tiny: no 0x80 or 0x40 marker (data < 64, fits in 6 bits)
         let tiny = DlpArg::new(0x20, vec![0x01]);
         assert_eq!(tiny.encode()[0] & 0xC0, 0);
+    }
+    #[test]
+    fn test_arg_encode_boundary_63_bytes() {
+        // Exactly at tiny/short boundary: 63 bytes should use tiny
+        let arg = DlpArg::new(0x20, vec![0xAA; 63]);
+        let encoded = arg.encode();
+        assert_eq!(encoded[0] & 0x80, 0, "63 bytes should use tiny format");
+    }
+
+    #[test]
+    fn test_arg_encode_boundary_64_bytes() {
+        // Just past tiny boundary: 64 bytes should use short
+        let arg = DlpArg::new(0x20, vec![0xAA; 64]);
+        let encoded = arg.encode();
+        assert_eq!(encoded[0] & 0xC0, 0x80, "64 bytes should use short format");
+    }
+
+    #[test]
+    fn test_arg_encode_boundary_16383_16384_bytes() {
+        // Short format max should be 16383, 16384 should trigger long
+        let arg_short_max = DlpArg::new(0x20, vec![0xAA; 16383]);
+        assert_eq!(arg_short_max.encode()[0] & 0xC0, 0x80);
+
+        let arg_long = DlpArg::new(0x20, vec![0xAA; 16384]);
+        assert_eq!(arg_long.encode()[0] & 0xC0, 0xC0, "16384 bytes should use long format");
     }
 
     #[test]
