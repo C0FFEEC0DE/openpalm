@@ -41,6 +41,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/protocol/dlp.rs` — Removed unnecessary `mut` from `vfs_volume_enumerate` and `exp_slot_enumerate`
 - `src/protocol/dlp.rs` — Added 25 unit tests covering encode/decode round-trips, all 81 function codes, error codes, arg formats, and date conversions
 - `src/protocol/dlp.rs` — Fixed pre-existing DLP arg format bugs: tiny format no longer corrupts length with id bits, short/long format no longer includes id byte in data, encoded_size now matches actual encoded length, DLP_ARG_TINY_LEN corrected (0xFF→0x3F), DLP_ARG_SHORT_LEN corrected (0xFFFF→0x3FFF)
+- `src/protocol/dlp.rs` — Fixed long format encode marker (0x40→0xC0) — was producing broken wire data for >16383 byte args
+- `src/protocol/dlp.rs` — Fixed `read_db_list` returning hardcoded metadata (now parses flags, type, creator, dates, sizes, record count from response)
+- `src/protocol/dlp.rs` — Added WouldBlock retry guard (10000 max retries) in body read loop
+- `src/protocol/dlp.rs` — Fixed `encoded_size()` short format id < 0x40 guard mismatch with encode()
+- `src/protocol/dlp.rs` — Fixed 7 wrapper methods returning partial hardcoded Record/DatabaseInfo metadata
+- `src/protocol/dlp.rs` — Added boundary tests at DLP_ARG_TINY_LEN/SHORT_LEN transitions (63/64, 16383/16384)
 
 ### Changed
 - `Cargo.toml` — Restored `[features]` with `serial`/`usb` feature flags, deps made optional

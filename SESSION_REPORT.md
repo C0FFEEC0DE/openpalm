@@ -212,3 +212,43 @@ The code had four bugs:
 | `cargo test` | 169 passed, 0 failed |
 | `cargo check` | 0 errors |
 | `cargo clippy` | 0 new warnings |
+
+---
+
+## 11. Remaining 7 DLP Bugs Fixed (2026-04-29, sixth pass)
+
+### Goal
+Fix all remaining bugs identified in the second code review (@cr pass 2).
+
+### Fixes
+
+| # | Severity | Bug | Fix |
+|---|----------|-----|-----|
+| 1 | HIGH | Long format encode used 0x40 marker instead of 0xC0 | Changed `0x40` to `0xC0` on encode line 443 |
+| 2 | HIGH | `read_db_list` returned hardcoded metadata | Parse 14-arg chunks from response: flags, db_type, creator, version, dates, mod_num, sizes, num_records, unique_id_seed |
+| 3 | MEDIUM | WouldBlock body retry had no timeout guard | Added `MAX_WOULDBLOCK_RETRIES = 10000` counter, returns `SockTimeout` on exhaustion |
+| 4 | MEDIUM | `encoded_size()` checked `id < 0x40` for short format; `encode()` didn't | Removed `&& self.id < 0x40` guard from encoded_size() |
+| 5 | MEDIUM | 7 wrapper methods returned partial hardcoded metadata | Parse record attributes, ids, indices from response args in all 7 methods |
+| 6 | LOW | Boundary test coverage missing | Added tests at exactly 63/64 and 16383/16384 byte transitions |
+| 7 | LOW | Long format marker test was weak (`assert_ne`) | Tightened to `assert_eq!(encoded[0] & 0xC0, 0xC0)` |
+
+### Changed methods
+- `read_db_list` — now fully parses DatabaseInfo from response
+- `read_next_modified_rec` — parses id, index, attributes from response
+- `read_record` — parses id, attributes, category from response
+- `read_record_by_id` — parses index, attributes, category from response
+- `read_next_rec_in_category` — parses attributes from response
+- `read_next_modified_rec_in_category` — parses attributes from response
+- `read_open_db_info` — parses flags, type, creator, dates, sizes from response
+- `find_db_info` — parses full DatabaseInfo from response args
+
+### Verification
+| Check | Result |
+|---|---|
+| `cargo test` | 172 passed, 0 failed |
+| `cargo check` | 0 errors |
+| `cargo clippy` | 0 new warnings |
+
+### Remaining Risks
+- `ARGS_PER_DB = 14` constant for read_db_list chunking — may need adjustment per DLP version
+- `MAX_WOULDBLOCK_RETRIES = 10000` — threshold may need tuning per transport speed
