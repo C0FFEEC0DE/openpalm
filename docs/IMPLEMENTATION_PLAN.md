@@ -123,7 +123,7 @@ Rust port of pilot-link library (~30,000 lines of C code). This document tracks 
 ## Test Results
 
 ```
-running 137 tests
+running 169 tests
   error::tests::test_* ... ok (4 tests)
   protocol::dlp::tests::test_* ... ok (5 tests)
   protocol::slp::tests::test_* ... ok (4 tests)
@@ -157,7 +157,7 @@ running 137 tests
   utils::sys::tests::test_* ... ok (2 tests)
   vfs::tests::test_* ... ok (3 tests)
 
-test result: ok. 137 passed; 0 failed
+test result: ok. 169 passed; 0 failed
 ```
 
 ---
@@ -167,7 +167,7 @@ test result: ok. 137 passed; 0 failed
 | Category | Count |
 |----------|-------|
 | Total Files | 39 |
-| Tests | 137 |
+| Tests | 169 |
 | Lines of Rust | ~10,000+ |
 | Doc Comments | Complete |
 
@@ -225,7 +225,7 @@ test result: ok. 137 passed; 0 failed
 ## Completed Features
 
 ### Protocol Layer
-- ✅ Full DLP 1.4 protocol with 70+ functions
+- ✅ Full DLP 1.4 protocol with 81 functions (66 typed wrappers + escape hatch)
 - ✅ SLP (Serial Link Protocol) with packet framing
 - ✅ PADP (Palm Access Data Protocol) reliable channel
 - ✅ NET protocol handler for socket connections
@@ -245,7 +245,7 @@ test result: ok. 137 passed; 0 failed
 - ✅ Constants for database types/creators
 
 ### Testing
-- ✅ 137 tests passing
+- ✅ 169 tests passing
 - ✅ 100% coverage on core modules
 - ✅ Integration test support
 

@@ -11,7 +11,7 @@ pub mod net;
 pub mod syspkt;
 
 pub use socket::PilotSocket;
-pub use dlp::{DlpClient, ProtocolVersion};
+pub use dlp::{DlpArg, DlpClient, DlpRequest, DlpResponse, ProtocolVersion};
 pub use slp::{SlpConnection, SlpPacket, SlpPacketType, SlpState};
 pub use padp::{PadpConnection, PadpPacket, PadpType, PadpFlags, PadpState};
 pub use net::{NetHandler, NetPacket, NetConnection, NetCommand, NetState, NetError};

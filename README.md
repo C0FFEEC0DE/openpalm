@@ -6,7 +6,7 @@ A modern Rust port of the pilot-link project, providing a complete implementatio
 
 ## Features
 
-- **Full DLP 1.4 Protocol** - 70+ Desktop Link Protocol functions for database operations
+- **Full DLP 1.4 Protocol** - 81 Desktop Link Protocol functions with full typed wrapper coverage
 - **Multiple Transports** - Serial, USB, and Bluetooth support
 - **16 Record Types** - Address, Calendar, Todo, Memo, Expense, Mail, and more
 - **VFS Support** - Virtual File System for expansion cards
@@ -235,8 +235,8 @@ GPL-2.0 or later
 
 **All core implementation complete (39/39 files)**
 
-- 147 tests passing
-- DLP 1.4 protocol: 70+ functions
+- 169 tests passing
+- DLP 1.4 protocol: 81 functions, all with typed wrappers or escape hatch access
 - All 16 record types implemented
 - Transport layer: serial + USB (feature-gated)
 - VFS operations in DlpClient

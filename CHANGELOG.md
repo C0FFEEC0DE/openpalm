@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/transport/usb.rs` — Restored `Drop` impl for USB cleanup on drop/panic
 - `src/transport/usb.rs` — Restored `device_info()`, `vendor_id()`, `product_id()` helpers
 - `src/transport/serial.rs` — Restored `flow_control` field to `SerialParams` with hardware flow control
+- `src/protocol/dlp.rs` — 40 new DlpClient wrapper methods: Resources, Categories, Preferences, Net Sync, DB Management, Utility, VFS Volume/Metadata/File Ops, Expansion Slots, Extended Records
+- `src/protocol/dlp.rs` — Public escape hatch: `DlpClient::execute()` + pub `DlpArg`/`DlpRequest`/`DlpResponse`
+- `src/protocol/dlp.rs` — `SetDbInfoParams` struct replacing 9 positional parameters in `set_db_info`
+- `docs/DLP_SPEC.md` — Desktop Link Protocol specification from actual implementation values
 
 ### Fixed
 - **Critical:** `PilotSocket::serial()` — Now actually creates and stores the transport connection
@@ -18,11 +22,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Critical:** `PilotSocket::mock()` — Restored with `MockConnection` (was deleted entirely)
 - **Critical:** `src/transport/usb.rs` — Fixed USB endpoint addresses: 0x81 (IN), 0x02 (OUT)
 - **Critical:** `src/transport/usb.rs` — Restored `release_interface` in `disconnect()`
+- **Critical:** `src/protocol/dlp.rs` — `send_request` now reads full response body (was 4-byte header only, all wrappers returned empty data)
+- `src/protocol/dlp.rs` — Fixed `read_open_db_info` using wrong function code (0x16 → 0x2B)
+- `src/protocol/dlp.rs` — Fixed `DlpResponse::decode` boundary check rejecting valid empty-body responses
+- `src/protocol/dlp.rs` — Fixed `decode_arg` losing arg_id for tiny-format encoded arguments
+- `src/protocol/dlp.rs` — Fixed `vfs_volume_format` silently ignoring vol_ref parameter
 - `src/transport/usb.rs` — Reverted `libusb` 0.2 to `libusb1-sys` 0.7 (vendored) for correct lifecycle management
 - `src/transport/serial.rs` — Fixed `available_ports()` return type (was `serialport::Error` vs `std::io::Error`)
 - `src/transport/mod.rs` — Restored `MockConnection`, `AsyncConnectionAdapter<T>`, `Connection for Box<T>` blanket impl
 - `src/protocol/socket.rs` — Removed `#[derive(Clone)]` from `TransportConnection`, using `Option::take()` for ownership transfer
 - `src/protocol/socket.rs` — Rerouted `disconnect()` and `is_connected()` through `DlpClient` after transport moved
+- `src/protocol/dlp.rs` — Fixed 64KB body limit to 16MB to support DLP 1.4 extended record/resource functions
+- `src/protocol/dlp.rs` — Fixed WouldBlock terminating body read (now retries instead of truncating)
+- `src/protocol/dlp.rs` — Fixed `vfs_volume_info` returning hardcoded zeros (now parses real response args)
+- `src/protocol/dlp.rs` — Fixed `vfs_volume_format` ignoring param argument (now sends it)
+- `src/protocol/dlp.rs` — Fixed `read_next_rec_in_category` / `read_next_modified_rec_in_category` returning hardcoded id=0/index=0
+- `src/protocol/dlp.rs` — Fixed `palm_date_to_system_time` panic on pre-1970 dates (returns error instead)
+- `src/protocol/dlp.rs` — Removed unnecessary `mut` from `vfs_volume_enumerate` and `exp_slot_enumerate`
+- `src/protocol/dlp.rs` — Added 25 unit tests covering encode/decode round-trips, all 81 function codes, error codes, arg formats, and date conversions
+- `src/protocol/dlp.rs` — Fixed pre-existing DLP arg format bugs: tiny format no longer corrupts length with id bits, short/long format no longer includes id byte in data, encoded_size now matches actual encoded length, DLP_ARG_TINY_LEN corrected (0xFF→0x3F), DLP_ARG_SHORT_LEN corrected (0xFFFF→0x3FFF)
 
 ### Changed
 - `Cargo.toml` — Restored `[features]` with `serial`/`usb` feature flags, deps made optional

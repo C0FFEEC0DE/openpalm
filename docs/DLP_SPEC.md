@@ -1,6 +1,6 @@
 # Desktop Link Protocol (DLP) Specification
 
-OpenPalm implements DLP 1.4 — the primary protocol for Palm OS device communication over HotSync.
+OpenPalm implements DLP 1.4 — the primary protocol for Palm OS device communication over HotSync. All 81 DLP function codes have corresponding DlpClient access (66 typed wrapper methods and an `execute()` escape hatch for raw request/reply).
 
 ## Protocol Version
 
@@ -365,6 +365,40 @@ DlpClient wraps an `Arc<Mutex<TransportConnection>>` and provides the complete D
 | `cleanup_database(handle)` | 0x26 | `Result<()>` |
 | `reset_sync_flags(handle)` | 0x27 | `Result<()>` |
 
+### Resources
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `read_resource(handle, index)` | 0x23 | `Result<Vec<u8>>` |
+| `write_resource(handle, index, data)` | 0x24 | `Result<()>` |
+| `delete_resource(handle, index)` | 0x25 | `Result<()>` |
+
+### Categories
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `move_category(handle, src, dst)` | 0x2C | `Result<()>` |
+| `read_next_rec_in_category(handle, category)` | 0x32 | `Result<Option<Record>>` |
+| `read_next_modified_rec_in_category(handle, category)` | 0x33 | `Result<Option<Record>>` |
+
+### Preferences
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `read_app_preference(creator, id, max_size)` | 0x34 | `Result<Vec<u8>>` |
+| `write_app_preference(creator, id, data)` | 0x35 | `Result<()>` |
+
+### Net Sync
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `read_net_sync_info()` | 0x36 | `Result<(String, String, u32)>` |
+| `write_net_sync_info(host, user, pass, port)` | 0x37 | `Result<()>` |
+
+### Database Management
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `find_db_info(card_no, name)` | 0x39 | `Result<Option<DatabaseInfo>>` |
+| `set_db_info(params: &SetDbInfoParams)` | 0x3A | `Result<()>` |
+
+`set_db_info` accepts a `SetDbInfoParams` struct (builder-pattern, `new(handle: u8)`) instead of 9 positional parameters. Fields: `handle`, `flags`, `clear_flags`, `version`, `create_date`, `modify_date`, `backup_date`, `db_type`, `creator`.
+
 ### App/Sort Blocks
 | Method | DLP Code | Return |
 |--------|----------|--------|
@@ -373,6 +407,12 @@ DlpClient wraps an `Arc<Mutex<TransportConnection>>` and provides the complete D
 | `read_sort_block(handle, offset, size)` | 0x1D | `Result<Vec<u8>>` |
 | `write_sort_block(handle, data)` | 0x1E | `Result<()>` |
 
+### Utility
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `call_application(creator, action, data)` | 0x28 | `Result<u32>` |
+| `loop_back_test(data)` | 0x3B | `Result<Vec<u8>>` |
+
 ### Sync
 | Method | DLP Code | Return |
 |--------|----------|--------|
@@ -380,21 +420,74 @@ DlpClient wraps an `Arc<Mutex<TransportConnection>>` and provides the complete D
 | `end_sync(status: DlpEndStatus)` | 0x2F | `Result<()>` |
 | `add_sync_log(message: &str)` | 0x2A | `Result<()>` |
 
-### VFS
+### VFS Volume Management
 | Method | DLP Code | Return |
 |--------|----------|--------|
-| `vfs_volume_enumerate()` | 0x55 | `Result<Vec<VolumeRef>>` |
-| `vfs_volume_info(vol_ref)` | 0x56 | `Result<VolumeInfo>` |
+| `vfs_volume_format(vol_ref, param)` | 0x54 | `Result<()>` |
+| `vfs_volume_get_label(vol_ref)` | 0x57 | `Result<String>` |
+| `vfs_volume_set_label(vol_ref, label)` | 0x58 | `Result<()>` |
+| `vfs_volume_size(vol_ref)` | 0x59 | `Result<(u32, u32, u32)>` |
+
+### VFS File Operations
+| Method | DLP Code | Return |
+|--------|----------|--------|
 | `vfs_file_open(vol_ref, path, mode)` | 0x44 | `Result<FileRef>` |
 | `vfs_file_close(file_ref)` | 0x45 | `Result<()>` |
 | `vfs_file_read(file_ref, size)` | 0x47 | `Result<Vec<u8>>` |
 | `vfs_file_write(file_ref, data)` | 0x46 | `Result<u32>` |
 | `vfs_file_seek(file_ref, offset, origin)` | 0x5A | `Result<()>` |
-| `vfs_file_size(file_ref)` | 0x5C | `Result<u32>` |
 | `vfs_file_delete(vol_ref, path)` | 0x48 | `Result<()>` |
 | `vfs_file_rename(vol_ref, old_path, new_path)` | 0x49 | `Result<()>` |
 | `vfs_dir_create(vol_ref, path)` | 0x50 | `Result<()>` |
 | `vfs_dir_enum(vol_ref, path, start)` | — | `Result<Vec<String>>` |
+| `vfs_custom_control(op, data)` | 0x3F | `Result<Vec<u8>>` |
+| `vfs_get_default_dir(vol_ref)` | 0x40 | `Result<String>` |
+| `vfs_import_database_from_file(vol_ref, path)` | 0x41 | `Result<()>` |
+| `vfs_export_database_to_file(handle, vol_ref, path)` | 0x42 | `Result<()>` |
+| `vfs_file_create(vol_ref, path)` | 0x43 | `Result<()>` |
+| `vfs_get_file(vol_ref, path, dest_path)` | 0x52 | `Result<()>` |
+| `vfs_put_file(vol_ref, path, src_path)` | 0x53 | `Result<()>` |
+
+### VFS File Metadata
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `vfs_file_eof(file_ref)` | 0x4A | `Result<bool>` |
+| `vfs_file_tell(file_ref)` | 0x4B | `Result<u32>` |
+| `vfs_file_get_attributes(file_ref)` | 0x4C | `Result<u32>` |
+| `vfs_file_set_attributes(file_ref, attrs)` | 0x4D | `Result<()>` |
+| `vfs_file_get_date(file_ref)` | 0x4E | `Result<PalmDateTime>` |
+| `vfs_file_set_date(file_ref, date)` | 0x4F | `Result<()>` |
+| `vfs_file_resize(file_ref, size)` | 0x5B | `Result<()>` |
+| `vfs_file_size(file_ref)` | 0x5C | `Result<u32>` |
+
+### VFS Volume Info
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `vfs_volume_enumerate()` | 0x55 | `Result<Vec<VolumeRef>>` |
+| `vfs_volume_info(vol_ref)` | 0x56 | `Result<VolumeInfo>` |
+
+### Expansion Slots
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `exp_slot_enumerate()` | 0x3C | `Result<Vec<u8>>` |
+| `exp_card_present(slot_ref)` | 0x3D | `Result<bool>` |
+| `exp_card_info(slot_ref)` | 0x3E | `Result<Vec<u8>>` |
+| `exp_slot_media_type(slot_ref)` | 0x5D | `Result<u32>` |
+
+### Extended Records (DLP 1.4)
+| Method | DLP Code | Return |
+|--------|----------|--------|
+| `read_record_ex(handle, index, offset, size)` | 0x60 | `Result<Vec<u8>>` |
+| `read_resource_ex(handle, type, id)` | 0x64 | `Result<Vec<u8>>` |
+| `write_record_ex(handle, flags, id, cat, data)` | 0x5E | `Result<u32>` |
+| `write_resource_ex(handle, type, id, data)` | 0x5F | `Result<()>` |
+
+### Escape Hatch
+| Method | Return |
+|--------|--------|
+| `execute(request: &DlpRequest)` | `Result<DlpResponse>` |
+
+Sends a raw `DlpRequest` and returns the raw `DlpResponse`. Covers any DLP function code not yet exposed through a typed wrapper. `DlpRequest`, `DlpResponse`, and `DlpArg` are all fully public types.
 
 ## Date Conversion
 
@@ -403,4 +496,12 @@ palm_date_to_system_time(palm_date: &[u8]) -> Result<SystemTime>
 system_time_to_palm_date(time: SystemTime) -> [u8; 8]
 ```
 
-Palm epoch: January 1, 1904. Offset from Unix epoch: 2082844800 seconds.
+Palm epoch: January 1, 1904. Offset from Unix epoch: 2082844800 seconds. `palm_date_to_system_time` returns `Err` for pre-1970 dates (negative Unix timestamps) instead of panicking.
+
+## Known Issues
+
+- **Long format encode marker:** Uses `0x40` instead of `0xC0` for the long-format header bits (bits 7:6=11). This means args larger than ~16KB are encoded with a short-format header, silently truncating the length to 14 bits. Affects only very large arguments (>16383 bytes).
+- **`read_db_list` metadata:** Returns hardcoded-zero metadata for all fields except name, flags, and db_type. Record counts, sizes, timestamps, and other fields in the returned `DatabaseInfo` structs are zero.
+- **Body WouldBlock retry:** The `send_request` body read loop retries on `WouldBlock` but has no timeout guard. On a permanently non-ready transport, this loops forever.
+- **Seven wrapper methods** still return partial hardcoded metadata: `read_sys_info`, `read_storage_info`, `read_open_db_info`, `read_net_sync_info`, `exp_card_info`, `vfs_volume_size`, and `vfs_custom_control`. These return minimal placeholder data; the actual response bytes are discarded.
+- **`decode_arg` signature change:** Now takes `index: usize` as a second parameter for tiny-format arg_id derivation (`0x20 + index`). This is a breaking API change, but `decode_arg` has zero external callers (it is used internally by `DlpResponse::decode`).
