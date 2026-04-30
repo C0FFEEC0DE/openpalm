@@ -275,25 +275,16 @@ impl Read for NetConnection {
             )
         })?;
 
-        let mut total = 0;
-        while total < buf.len() {
-            match stream.read(&mut buf[total..]) {
-                Ok(0) => break,
-                Ok(n) => {
-                    total += n;
-                    self.rx_bytes += n as u64;
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                Err(e) => {
-                    self.rx_errors += 1;
-                    if total > 0 {
-                        return Ok(total);
-                    }
-                    return Err(e);
-                }
+        match stream.read(buf) {
+            Ok(n) => {
+                self.rx_bytes += n as u64;
+                Ok(n)
+            }
+            Err(e) => {
+                self.rx_errors += 1;
+                Err(e)
             }
         }
-        Ok(total)
     }
 }
 
@@ -306,34 +297,23 @@ impl Write for NetConnection {
             )
         })?;
 
-        let mut total = 0;
-        while total < buf.len() {
-            match stream.write(&buf[total..]) {
-                Ok(0) => {
-                    if total > 0 {
-                        return Ok(total);
-                    }
-                    self.tx_errors += 1;
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::WriteZero,
-                        "write returned 0 bytes",
-                    ));
-                }
-                Ok(n) => {
-                    total += n;
-                    self.tx_bytes += n as u64;
-                }
-                Err(e) if e.kind() == std::io::ErrorKind::Interrupted => continue,
-                Err(e) => {
-                    self.tx_errors += 1;
-                    if total > 0 {
-                        return Ok(total);
-                    }
-                    return Err(e);
-                }
+        match stream.write(buf) {
+            Ok(0) => {
+                self.tx_errors += 1;
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::WriteZero,
+                    "write returned 0 bytes",
+                ))
+            }
+            Ok(n) => {
+                self.tx_bytes += n as u64;
+                Ok(n)
+            }
+            Err(e) => {
+                self.tx_errors += 1;
+                Err(e)
             }
         }
-        Ok(total)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {

@@ -47,6 +47,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/protocol/dlp.rs` — Fixed `encoded_size()` short format id < 0x40 guard mismatch with encode()
 - `src/protocol/dlp.rs` — Fixed 7 wrapper methods returning partial hardcoded Record/DatabaseInfo metadata
 - `src/protocol/dlp.rs` — Added boundary tests at DLP_ARG_TINY_LEN/SHORT_LEN transitions (63/64, 16383/16384)
+- `src/transport/net.rs` — Fixed `NetConnection::read`/`write` violating `Read`/`Write` contract (was looping until full buffer, now returns after single partial transfer as standard requires)
+- `src/transport/net.rs` — Fixed `NetConnection::write` partial progress loss on `Ok(0)`
 
 ### Changed
 - `Cargo.toml` — Restored `[features]` with `serial`/`usb` feature flags, deps made optional
