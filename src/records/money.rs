@@ -304,10 +304,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Money database type
-    pub const MONEY_TYPE: FourCharCode = FourCharCode { 0: 0x4D6F6E65 }; // "Mone"
+    pub const MONEY_TYPE: FourCharCode = FourCharCode(0x4D6F6E65); // "Mone"
     
     /// Money database creator
-    pub const MONEY_CREATOR: FourCharCode = FourCharCode { 0: 0x4D6F6E65 }; // "Mone"
+    pub const MONEY_CREATOR: FourCharCode = FourCharCode(0x4D6F6E65); // "Mone"
 
     /// Maximum accounts
     pub const MAX_ACCOUNTS: usize = 20;

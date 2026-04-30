@@ -328,6 +328,7 @@ impl CalendarAppInfo {
 
 /// Calendar DB info
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct CalendarDbInfo {
     /// Version
     pub version: u16,
@@ -339,16 +340,6 @@ pub struct CalendarDbInfo {
     pub default_calendar: u8,
 }
 
-impl Default for CalendarDbInfo {
-    fn default() -> Self {
-        Self {
-            version: 0,
-            last_view_mode: 0,
-            last_date: 0,
-            default_calendar: 0,
-        }
-    }
-}
 
 #[cfg(test)]
 mod tests {

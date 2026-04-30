@@ -4,6 +4,7 @@ use std::fmt;
 
 /// A four-character code used in Palm OS for types and creators
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default)]
 pub struct FourCharCode(pub u32);
 
 impl FourCharCode {
@@ -52,11 +53,6 @@ impl FourCharCode {
     }
 }
 
-impl Default for FourCharCode {
-    fn default() -> Self {
-        FourCharCode(0)
-    }
-}
 
 impl fmt::Debug for FourCharCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

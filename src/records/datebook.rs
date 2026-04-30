@@ -343,11 +343,7 @@ impl DatebookRecord {
 
     /// Get duration in minutes
     pub fn duration_minutes(&self) -> u16 {
-        if self.end_time > self.start_time {
-            self.end_time - self.start_time
-        } else {
-            0
-        }
+        self.end_time.saturating_sub(self.start_time)
     }
 
     /// Format time for display
@@ -365,10 +361,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Datebook database type
-    pub const DATEBOOK_TYPE: FourCharCode = FourCharCode { 0: 0x44617442 }; // "DatB"
+    pub const DATEBOOK_TYPE: FourCharCode = FourCharCode(0x44617442); // "DatB"
     
     /// Datebook database creator
-    pub const DATEBOOK_CREATOR: FourCharCode = FourCharCode { 0: 0x44617442 }; // "DatB"
+    pub const DATEBOOK_CREATOR: FourCharCode = FourCharCode(0x44617442); // "DatB"
 
     /// Minutes in a day
     pub const MINUTES_PER_DAY: u16 = 1440;

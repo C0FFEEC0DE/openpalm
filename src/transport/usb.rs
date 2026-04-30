@@ -4,6 +4,7 @@
 //! Supports USB bulk transfer mode.
 
 use crate::error::{PilotError, Result};
+use crate::transport::{Connection, ConnectionState};
 use libusb1_sys as libusb;
 use std::io::{Read, Write};
 use std::time::Duration;
@@ -100,7 +101,7 @@ impl Usb {
             let mut found_info: Option<String> = None;
 
             for i in 0..count {
-                let dev = *dev_list.offset(i as isize);
+                let dev = *dev_list.offset(i);
                 let mut desc: libusb::libusb_device_descriptor = std::mem::zeroed();
                 let ret = libusb::libusb_get_device_descriptor(dev, &mut desc);
                 if ret < 0 {
@@ -223,8 +224,7 @@ impl Read for Usb {
                 self.params.timeout_ms as u32,
             );
             if ret < 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                return Err(std::io::Error::other(
                     format!("USB read error: {}", ret),
                 ));
             }
@@ -244,14 +244,16 @@ impl Write for Usb {
             let ret = libusb::libusb_bulk_transfer(
                 handle,
                 self.endpoint_out,
+                // SAFETY: The const-to-mutable cast is safe here because
+                // libusb_bulk_transfer does not modify the buffer for OUT
+                // endpoints; the pointer is only used for reading data to send.
                 buf.as_ptr() as *mut u8,
                 buf.len() as i32,
                 &mut transferred,
                 self.params.timeout_ms as u32,
             );
             if ret < 0 {
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::Other,
+                return Err(std::io::Error::other(
                     format!("USB write error: {}", ret),
                 ));
             }
@@ -267,6 +269,29 @@ impl Write for Usb {
 impl Drop for Usb {
     fn drop(&mut self) {
         let _ = self.disconnect();
+    }
+}
+
+// SAFETY: libusb context and device handle pointers are safe to Send because
+// each Usb instance owns its own isolated context/handle pair. libusb is
+// designed for multi-threaded use and no other thread can access these pointers.
+unsafe impl Send for Usb {}
+
+impl Connection for Usb {
+    fn connect(&mut self) -> Result<()> {
+        self.connect()
+    }
+
+    fn disconnect(&mut self) -> Result<()> {
+        self.disconnect()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.is_connected()
+    }
+
+    fn set_timeout(&mut self, timeout: Duration) {
+        self.set_timeout(timeout)
     }
 }
 

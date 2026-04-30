@@ -142,7 +142,7 @@ impl TodoRecord {
         } else if let Some(ref due) = self.due {
             let (year, month, day) = due.get_date();
             // Format: YYYYYYYMMMMMDDDDD
-            let due_short = (((year as u16 - 4) & 0x7F) << 9) |
+            let due_short = (((year - 4) & 0x7F) << 9) |
                            (((month as u16 + 1) & 0x0F) << 5) |
                            ((day as u16) & 0x1F);
             data.extend_from_slice(&due_short.to_le_bytes());

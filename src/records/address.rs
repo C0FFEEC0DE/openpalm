@@ -179,14 +179,12 @@ impl AddressRecord {
         
         // Write strings
         let mut offset = 9;
-        for entry in &self.entry {
-            if let Some(s) = entry {
-                let bytes = s.as_bytes();
-                data[offset..offset + bytes.len()].copy_from_slice(bytes);
-                offset += bytes.len();
-                data[offset] = 0;
-                offset += 1;
-            }
+        for s in self.entry.iter().flatten() {
+            let bytes = s.as_bytes();
+            data[offset..offset + bytes.len()].copy_from_slice(bytes);
+            offset += bytes.len();
+            data[offset] = 0;
+            offset += 1;
         }
         
         data
@@ -194,9 +192,7 @@ impl AddressRecord {
     
     /// Get entry by type
     pub fn get(&self, entry: AddressEntry) -> Option<&str> {
-        self.entry[entry as usize]
-            .as_ref()
-            .map(|s| s.as_str())
+        self.entry[entry as usize].as_deref()
     }
     
     /// Set entry by type
@@ -212,9 +208,7 @@ impl AddressRecord {
         ].into_iter().flatten().collect();
         
         if parts.is_empty() {
-            self.entry[AddressEntry::Company as usize]
-                .as_ref()
-                .map(|s| s.as_str())
+            self.entry[AddressEntry::Company as usize].as_deref()
                 .unwrap_or("(no name)")
                 .to_string()
         } else {

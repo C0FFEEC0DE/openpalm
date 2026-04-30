@@ -8,6 +8,8 @@ use crate::transport::{Connection, ConnectionState};
 use crate::transport::Serial;
 #[cfg(feature = "usb")]
 use crate::transport::Usb;
+#[cfg(feature = "net")]
+use crate::transport::{NetConnection, NetParams};
 use crate::transport::MockConnection;
 use crate::protocol::dlp::{DlpClient, ProtocolVersion};
 use std::io::{Read, Write};
@@ -79,6 +81,8 @@ pub enum TransportConnection {
     Serial(Serial),
     #[cfg(feature = "usb")]
     Usb(Usb),
+    #[cfg(feature = "net")]
+    Net(NetConnection),
     Mock(MockConnection),
 }
 
@@ -89,6 +93,8 @@ impl TransportConnection {
             TransportConnection::Serial(s) => s.is_connected(),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.is_connected(),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.is_connected(),
             TransportConnection::Mock(m) => m.is_connected(),
         }
     }
@@ -99,6 +105,8 @@ impl TransportConnection {
             TransportConnection::Serial(s) => s.connect(),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.connect(),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.connect(),
             TransportConnection::Mock(m) => m.connect(),
         }
     }
@@ -109,6 +117,8 @@ impl TransportConnection {
             TransportConnection::Serial(s) => s.disconnect(),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.disconnect(),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.disconnect(),
             TransportConnection::Mock(m) => m.disconnect(),
         }
     }
@@ -121,6 +131,8 @@ impl Read for TransportConnection {
             TransportConnection::Serial(s) => s.read(buf),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.read(buf),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.read(buf),
             TransportConnection::Mock(m) => m.read(buf),
         }
     }
@@ -133,6 +145,8 @@ impl Write for TransportConnection {
             TransportConnection::Serial(s) => s.write(buf),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.write(buf),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.write(buf),
             TransportConnection::Mock(m) => m.write(buf),
         }
     }
@@ -143,6 +157,8 @@ impl Write for TransportConnection {
             TransportConnection::Serial(s) => s.flush(),
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.flush(),
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => n.flush(),
             TransportConnection::Mock(m) => m.flush(),
         }
     }
@@ -208,6 +224,28 @@ impl PilotSocket {
         socket
     }
 
+    /// Create a stream socket for TCP/IP network HotSync
+    #[cfg(feature = "net")]
+    pub fn net(host: &str, port: u16) -> Self {
+        let mut socket = Self::new(ProtocolFamily::Net, SocketType::Stream);
+        let params = NetParams::new(host).with_port(port);
+        socket.transport = Some(TransportConnection::Net(NetConnection::new(params)));
+        socket
+    }
+
+    /// Create a listening stream socket for TCP/IP network HotSync
+    #[cfg(feature = "net")]
+    pub fn net_listen(bind_addr: &str, port: u16) -> Result<Self> {
+        let mut socket = Self::new(ProtocolFamily::Net, SocketType::Stream);
+        let params = NetParams::new(bind_addr).with_port(port);
+        let mut conn = NetConnection::new(params);
+        conn.bind(format!("{}:{}", bind_addr, port))?;
+        conn.listen()?;
+        socket.transport = Some(TransportConnection::Net(conn));
+        socket.state = SocketState::Listening;
+        Ok(socket)
+    }
+
     /// Create a mock socket for testing
     pub fn mock() -> Self {
         let mut socket = Self::new(ProtocolFamily::Serial, SocketType::Stream);
@@ -236,6 +274,27 @@ impl PilotSocket {
         Ok(())
     }
 
+    /// Accept an incoming connection (server mode)
+    pub fn accept(&mut self) -> Result<()> {
+        if self.state != SocketState::Listening {
+            return Err(PilotError::SockInvalid);
+        }
+
+        let mut transport = self.transport.take().ok_or(PilotError::SockInvalid)?;
+
+        match &mut transport {
+            #[cfg(feature = "net")]
+            TransportConnection::Net(n) => {
+                n.accept()?;
+            }
+            _ => return Err(PilotError::SockInvalid),
+        }
+
+        self.state = SocketState::Connected;
+        self.dlp_client = Some(DlpClient::new(transport));
+        Ok(())
+    }
+
     /// Disconnect from device
     pub fn disconnect(&mut self) -> Result<()> {
         if let Some(ref client) = self.dlp_client {
@@ -253,7 +312,7 @@ impl PilotSocket {
     /// Check if socket is connected
     pub fn is_connected(&self) -> bool {
         self.state == SocketState::Connected
-            && self.dlp_client.as_ref().map_or(false, |c| {
+            && self.dlp_client.as_ref().is_some_and(|c| {
                 c.transport().lock().map(|t| t.is_connected()).unwrap_or(false)
             })
     }

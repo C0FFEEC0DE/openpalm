@@ -11,7 +11,7 @@ pub const PALM_UNDEFINED_DATE: u32 = 0x83DAC000;
 /// Convert Unix time_t to Palm OS date/time
 #[inline]
 pub fn to_palm_time(unix_time: i64) -> u32 {
-    (unix_time as i64 + PALM_EPOCH_TO_UNIX_EPOCH) as u32
+    (unix_time + PALM_EPOCH_TO_UNIX_EPOCH) as u32
 }
 
 /// Convert Palm OS date/time to Unix time_t
@@ -86,7 +86,7 @@ impl PalmDateTime {
     /// Note: Time components are set to 0:00:00
     pub fn set_date(&mut self, year: u16, month: u8, day: u8) {
         // Validate inputs
-        if year < 1904 || month < 1 || month > 12 || day < 1 {
+        if year < 1904 || !(1..=12).contains(&month) || day < 1 {
             return;
         }
         
@@ -222,7 +222,7 @@ pub fn write_palm_date_le(value: u32, bytes: &mut [u8]) -> Result<(), &'static s
 
 /// Check if a year is a leap year
 pub fn is_leap_year(year: u16) -> bool {
-    (year % 4 == 0 && year % 100 != 0) || (year % 400 == 0)
+    (year.is_multiple_of(4) && !year.is_multiple_of(100)) || year.is_multiple_of(400)
 }
 
 /// Get the number of days in a month

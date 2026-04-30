@@ -313,10 +313,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Mail database type
-    pub const MAIL_TYPE: FourCharCode = FourCharCode { 0: 0x4D61696C };
+    pub const MAIL_TYPE: FourCharCode = FourCharCode(0x4D61696C);
     
     /// Mail database creator
-    pub const MAIL_CREATOR: FourCharCode = FourCharCode { 0: 0x4D61696C };
+    pub const MAIL_CREATOR: FourCharCode = FourCharCode(0x4D61696C);
 
     /// Maximum subject length
     pub const MAX_SUBJECT_LENGTH: usize = 256;

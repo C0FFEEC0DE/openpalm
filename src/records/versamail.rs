@@ -397,10 +397,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// VersaMail database type
-    pub const VERSA_MAIL_TYPE: FourCharCode = FourCharCode { 0: 0x566D6C6D }; // "Vmlm"
+    pub const VERSA_MAIL_TYPE: FourCharCode = FourCharCode(0x566D6C6D); // "Vmlm"
     
     /// VersaMail database creator
-    pub const VERSA_MAIL_CREATOR: FourCharCode = FourCharCode { 0: 0x566D6C6D }; // "Vmlm"
+    pub const VERSA_MAIL_CREATOR: FourCharCode = FourCharCode(0x566D6C6D); // "Vmlm"
 
     /// Default IMAP port
     pub const DEFAULT_IMAP_PORT: u16 = 993;

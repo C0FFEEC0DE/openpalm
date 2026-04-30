@@ -77,6 +77,7 @@ impl ImageFormat {
 
 /// Camera information
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct CameraInfo {
     /// Camera make
     pub make: String,
@@ -94,19 +95,6 @@ pub struct CameraInfo {
     pub focal_length: Option<f32>,
 }
 
-impl Default for CameraInfo {
-    fn default() -> Self {
-        Self {
-            make: String::new(),
-            model: String::new(),
-            exposure: None,
-            f_number: None,
-            iso: None,
-            flash_fired: false,
-            focal_length: None,
-        }
-    }
-}
 
 /// Thumbnail image
 #[derive(Debug, Clone)]
@@ -391,10 +379,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// PalmPix database type
-    pub const PALMPIX_TYPE: FourCharCode = FourCharCode { 0: 0x50696374 }; // "Pict"
+    pub const PALMPIX_TYPE: FourCharCode = FourCharCode(0x50696374); // "Pict"
     
     /// PalmPix database creator
-    pub const PALMPIX_CREATOR: FourCharCode = FourCharCode { 0: 0x50696374 }; // "Pict"
+    pub const PALMPIX_CREATOR: FourCharCode = FourCharCode(0x50696374); // "Pict"
 
     /// Maximum image dimension
     pub const MAX_DIMENSION: u16 = 4096;

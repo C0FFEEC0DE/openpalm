@@ -7,18 +7,12 @@ use crate::error::Result;
 
 /// Memo record (simple text record)
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct MemoRecord {
     /// Memo text
     pub text: String,
 }
 
-impl Default for MemoRecord {
-    fn default() -> Self {
-        Self {
-            text: String::new(),
-        }
-    }
-}
 
 impl MemoRecord {
     /// Create a new empty memo

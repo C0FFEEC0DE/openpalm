@@ -175,10 +175,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Notepad database type
-    pub const NOTEPAD_TYPE: FourCharCode = FourCharCode { 0: 0x4E6F7465 };
+    pub const NOTEPAD_TYPE: FourCharCode = FourCharCode(0x4E6F7465);
     
     /// Notepad database creator
-    pub const NOTEPAD_CREATOR: FourCharCode = FourCharCode { 0: 0x4E6F7465 };
+    pub const NOTEPAD_CREATOR: FourCharCode = FourCharCode(0x4E6F7465);
 
     /// Maximum note length
     pub const MAX_NOTE_LENGTH: usize = 4096;

@@ -6,11 +6,15 @@
 pub mod serial;
 #[cfg(feature = "usb")]
 pub mod usb;
+#[cfg(feature = "net")]
+pub mod net;
 
 #[cfg(feature = "serial")]
 pub use serial::Serial;
 #[cfg(feature = "usb")]
 pub use usb::Usb;
+#[cfg(feature = "net")]
+pub use net::{NetConnection, NetParams, NetState};
 
 use std::io::{Read, Write};
 use async_trait::async_trait;
@@ -46,6 +50,11 @@ pub trait Connection: Read + Write + Send {
     /// Set timeout for operations
     fn set_timeout(&mut self, timeout: std::time::Duration) {
         let _ = timeout;
+    }
+
+    /// Drain any pending input from the transport (non-blocking)
+    fn drain_input(&mut self) -> std::io::Result<()> {
+        Ok(())
     }
 }
 
@@ -156,6 +165,10 @@ impl<T: Connection + ?Sized> Connection for Box<T> {
 
     fn state(&self) -> ConnectionState {
         (**self).state()
+    }
+
+    fn drain_input(&mut self) -> std::io::Result<()> {
+        (**self).drain_input()
     }
 }
 

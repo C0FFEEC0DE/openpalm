@@ -7,6 +7,7 @@ use std::io::{Read, Write};
 use std::time::Duration;
 
 use crate::error::{PilotError, Result};
+use crate::transport::{Connection, ConnectionState};
 
 /// Serial connection parameters
 #[derive(Debug, Clone)]
@@ -83,7 +84,7 @@ impl Serial {
             .data_bits(DataBits::Eight)
             .parity(Parity::None)
             .stop_bits(StopBits::One)
-            .timeout(self.timeout.clone())
+            .timeout(self.timeout)
             .flow_control(if self.xon_xoff {
                 FlowControl::Software
             } else if self.flow_control {
@@ -92,7 +93,7 @@ impl Serial {
                 FlowControl::None
             })
             .open()
-            .map_err(|e| PilotError::SockIo)?;
+            .map_err(|_e| PilotError::SockIo)?;
         
         self.port = Some(port);
         Ok(())
@@ -153,7 +154,7 @@ impl Serial {
                     })
                     .collect()
             })
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))
+            .map_err(|e| std::io::Error::other(e))
     }
 }
 
@@ -191,6 +192,24 @@ impl Write for Serial {
                 "serial port not connected"
             ))
         }
+    }
+}
+
+impl Connection for Serial {
+    fn connect(&mut self) -> Result<()> {
+        self.connect()
+    }
+
+    fn disconnect(&mut self) -> Result<()> {
+        self.disconnect()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.is_connected()
+    }
+
+    fn set_timeout(&mut self, timeout: Duration) {
+        self.set_timeout(timeout)
     }
 }
 

@@ -290,10 +290,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Expense database type
-    pub const EXPENSE_TYPE: FourCharCode = FourCharCode { 0: 0x45787073 };
+    pub const EXPENSE_TYPE: FourCharCode = FourCharCode(0x45787073);
     
     /// Expense database creator
-    pub const EXPENSE_CREATOR: FourCharCode = FourCharCode { 0: 0x4578706E };
+    pub const EXPENSE_CREATOR: FourCharCode = FourCharCode(0x4578706E);
     
     /// Maximum expense amount
     pub const MAX_AMOUNT: i32 = 999_999_99;

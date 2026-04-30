@@ -376,10 +376,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Location database type
-    pub const LOCATION_TYPE: FourCharCode = FourCharCode { 0: 0x4C6F6361 }; // "Loca"
+    pub const LOCATION_TYPE: FourCharCode = FourCharCode(0x4C6F6361); // "Loca"
     
     /// Location database creator
-    pub const LOCATION_CREATOR: FourCharCode = FourCharCode { 0: 0x4C6F6361 }; // "Loca"
+    pub const LOCATION_CREATOR: FourCharCode = FourCharCode(0x4C6F6361); // "Loca"
 
     /// Earth radius in meters
     pub const EARTH_RADIUS_M: f64 = 6371000.0;

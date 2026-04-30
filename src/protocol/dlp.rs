@@ -295,6 +295,7 @@ impl SystemInfo {
 
 /// User information
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct UserInfo {
     /// Username
     pub username: String,
@@ -310,18 +311,6 @@ pub struct UserInfo {
     pub successful_sync_date: Option<PalmDateTime>,
 }
 
-impl Default for UserInfo {
-    fn default() -> Self {
-        Self {
-            username: String::new(),
-            user_id: 0,
-            viewer_id: 0,
-            last_sync_pc: 0,
-            last_sync_date: None,
-            successful_sync_date: None,
-        }
-    }
-}
 
 /// Storage card information
 #[derive(Debug, Clone)]
@@ -752,8 +741,8 @@ impl SetDbInfoParams {
             create_date: 0,
             modify_date: 0,
             backup_date: 0,
-            db_type: FourCharCode { 0: 0 },
-            creator: FourCharCode { 0: 0 },
+            db_type: FourCharCode(0),
+            creator: FourCharCode(0),
         }
     }
 }
@@ -808,8 +797,8 @@ impl DlpClient {
         let data = request.encode();
 
         // Send through transport
-        Write::write_all(&mut *transport, &data)?;
-        Write::flush(&mut *transport)?;
+        transport.write_all(&data)?;
+        transport.flush()?;
 
         // Read response header (4 bytes: function, argc, error_code, flags)
         let mut header = [0u8; 4];
@@ -1267,7 +1256,7 @@ impl DlpClient {
         &self,
         creator: FourCharCode,
         db_type: FourCharCode,
-        card_no: CardNo,
+        _card_no: CardNo,
         flags: DatabaseFlags,
         version: u32,
         name: &str,
@@ -1446,7 +1435,7 @@ impl DlpClient {
             return Ok(None);
         }
         
-        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
@@ -1470,7 +1459,7 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
@@ -1491,7 +1480,7 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        let data = response.args.get(0).map(|a| a.data.clone()).unwrap_or_default();
+        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
             data,
@@ -1521,7 +1510,7 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        response.get_u32(0).map(|v| v).map_err(|_| PilotError::DlpBufSize)
+        response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
     /// Delete a record
@@ -1935,7 +1924,7 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        response.get_u32(0).map(|n| n).map_err(|_| PilotError::DlpBufSize)
+        response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
     /// Seek in file
@@ -1956,7 +1945,7 @@ impl DlpClient {
         
         let response = self.send_request(&req).await?;
         
-        response.get_u32(0).map(|s| s).map_err(|_| PilotError::DlpBufSize)
+        response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
     /// Delete a file

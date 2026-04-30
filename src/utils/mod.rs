@@ -125,7 +125,7 @@ pub fn bytes_to_hex(data: &[u8]) -> String {
 /// Parse hex string to bytes
 pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, &'static str> {
     let hex = hex.trim();
-    if hex.len() % 2 != 0 {
+    if !hex.len().is_multiple_of(2) {
         return Err("Hex string must have even length");
     }
     
@@ -183,12 +183,12 @@ pub fn swap<T>(a: &mut T, b: &mut T) {
 
 /// Rotate bits left
 pub fn rotl(value: u32, n: u32) -> u32 {
-    (value << n) | (value >> (32 - n))
+    value.rotate_left(n)
 }
 
 /// Rotate bits right
 pub fn rotr(value: u32, n: u32) -> u32 {
-    (value >> n) | (value << (32 - n))
+    value.rotate_right(n)
 }
 
 /// Convert 4-character string to FourCC
@@ -218,10 +218,7 @@ pub fn describe_record(data: &[u8]) -> String {
     let first_byte = data[0];
     
     if data.len() >= 2 {
-        match data[0] {
-            0x00..=0x7F => return format!("Address record ({} bytes)", data.len()),
-            _ => {}
-        }
+        if let 0x00..=0x7F = data[0] { return format!("Address record ({} bytes)", data.len()) }
     }
     
     format!("Unknown record type 0x{:02X} ({} bytes)", first_byte, data.len())

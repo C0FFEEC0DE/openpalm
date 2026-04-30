@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_sys_info_pack_parse() {
-        let mut info = SysInfo {
+        let info = SysInfo {
             rom_version_major: 5,
             rom_version_minor: 4,
             rom_version_dot: 2,

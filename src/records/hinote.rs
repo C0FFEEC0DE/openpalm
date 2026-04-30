@@ -89,6 +89,7 @@ impl HiNoteLanguage {
 
 /// Stroke data for handwriting
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct Stroke {
     /// X coordinates
     pub x: Vec<i16>,
@@ -100,16 +101,6 @@ pub struct Stroke {
     pub timestamps: Vec<u16>,
 }
 
-impl Default for Stroke {
-    fn default() -> Self {
-        Self {
-            x: Vec::new(),
-            y: Vec::new(),
-            pressure: Vec::new(),
-            timestamps: Vec::new(),
-        }
-    }
-}
 
 /// Ink point
 #[derive(Debug, Clone, Copy)]
@@ -323,10 +314,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// HiNote database type
-    pub const HINOTE_TYPE: FourCharCode = FourCharCode { 0: 0x48494E4F }; // "HINO"
+    pub const HINOTE_TYPE: FourCharCode = FourCharCode(0x48494E4F); // "HINO"
     
     /// HiNote database creator
-    pub const HINOTE_CREATOR: FourCharCode = FourCharCode { 0: 0x48494E4F }; // "HINO"
+    pub const HINOTE_CREATOR: FourCharCode = FourCharCode(0x48494E4F); // "HINO"
 
     /// Maximum strokes
     pub const MAX_STROKES: usize = 1000;

@@ -137,6 +137,7 @@ impl Record {
 
 /// Database header (on-device format)
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct DatabaseHeader {
     /// Named database header (next 78 bytes)
     /// "Name" - database name (32 bytes, null-terminated)
@@ -173,28 +174,6 @@ pub struct DatabaseHeader {
     _reserved: [u8; 2],
 }
 
-impl Default for DatabaseHeader {
-    fn default() -> Self {
-        Self {
-            name: [0u8; 32],
-            flags: 0,
-            version: 0,
-            created: 0,
-            modified: 0,
-            backup: 0,
-            mod_num: 0,
-            app_info_id: 0,
-            sort_info_id: 0,
-            db_type: 0,
-            creator: 0,
-            unique_id_seed: 0,
-            next_rec_list_id: 0,
-            num_records: 0,
-            unique_record_seed: 0,
-            _reserved: [0u8; 2],
-        }
-    }
-}
 
 impl DatabaseHeader {
     /// Parse from bytes
@@ -349,6 +328,7 @@ impl AppInfo {
 
 /// Category definition
 #[derive(Debug, Clone)]
+#[derive(Default)]
 pub struct Category {
     /// Category ID
     pub id: u8,
@@ -360,16 +340,6 @@ pub struct Category {
     pub reserved: u8,
 }
 
-impl Default for Category {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            name: [0u8; 16],
-            flags: 0,
-            reserved: 0,
-        }
-    }
-}
 
 /// Database wrapper
 #[derive(Debug)]

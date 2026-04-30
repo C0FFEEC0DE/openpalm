@@ -83,7 +83,7 @@ pub fn palm_strftime(format: &str, tm: &std::time::Duration) -> String {
     let month = days_before_month.iter()
         .enumerate()
         .filter(|(_, &d)| d <= remaining_days)
-        .last()
+        .next_back()
         .map(|(i, _)| i + 1)
         .unwrap_or(1);
     

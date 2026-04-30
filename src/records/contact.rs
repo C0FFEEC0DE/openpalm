@@ -415,10 +415,10 @@ pub mod constants {
     use crate::types::FourCharCode;
 
     /// Contact database type
-    pub const CONTACT_TYPE: FourCharCode = FourCharCode { 0: 0x41444452 }; // "ADDR"
+    pub const CONTACT_TYPE: FourCharCode = FourCharCode(0x41444452); // "ADDR"
     
     /// Contact database creator
-    pub const CONTACT_CREATOR: FourCharCode = FourCharCode { 0: 0x41444452 }; // "ADDR"
+    pub const CONTACT_CREATOR: FourCharCode = FourCharCode(0x41444452); // "ADDR"
 
     /// Maximum phone numbers
     pub const MAX_PHONES: usize = 8;
