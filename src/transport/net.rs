@@ -12,7 +12,7 @@ use crate::transport::{Connection, ConnectionState};
 
 /// Network connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum NetState {
+pub enum InetState {
     /// Not connected or bound
     Disconnected,
     /// Bound to a local address
@@ -72,11 +72,11 @@ impl NetParams {
 ///
 /// Wraps a `std::net::TcpStream` and implements `Read` + `Write`
 /// by delegating to the underlying TCP stream.
-pub struct NetConnection {
+pub struct InetConnection {
     /// Connection parameters
     params: NetParams,
     /// Current connection state
-    state: NetState,
+    state: InetState,
     /// Underlying TCP stream (None when not connected)
     stream: Option<TcpStream>,
     /// TCP listener for server mode
@@ -93,12 +93,12 @@ pub struct NetConnection {
     nonblocking: bool,
 }
 
-impl NetConnection {
+impl InetConnection {
     /// Create a new network connection with the given parameters
     pub fn new(params: NetParams) -> Self {
         Self {
             params,
-            state: NetState::Disconnected,
+            state: InetState::Disconnected,
             stream: None,
             listener: None,
             rx_bytes: 0,
@@ -113,22 +113,22 @@ impl NetConnection {
     pub fn bind(&mut self, addr: impl ToSocketAddrs) -> Result<()> {
         let listener = TcpListener::bind(addr).map_err(|_| PilotError::SockIo)?;
         self.listener = Some(listener);
-        self.state = NetState::Bound;
+        self.state = InetState::Bound;
         Ok(())
     }
 
     /// Transition from Bound to Listening state
     pub fn listen(&mut self) -> Result<()> {
-        if self.state != NetState::Bound {
+        if self.state != InetState::Bound {
             return Err(PilotError::SockInvalid);
         }
-        self.state = NetState::Listening;
+        self.state = InetState::Listening;
         Ok(())
     }
 
     /// Accept an incoming connection
     pub fn accept(&mut self) -> Result<()> {
-        if self.state != NetState::Listening {
+        if self.state != InetState::Listening {
             return Err(PilotError::SockInvalid);
         }
 
@@ -144,7 +144,7 @@ impl NetConnection {
 
         self.stream = Some(stream);
         self.nonblocking = false;
-        self.state = NetState::Connected;
+        self.state = InetState::Connected;
         Ok(())
     }
 
@@ -169,7 +169,7 @@ impl NetConnection {
             return Err(PilotError::SockIo);
         }
 
-        self.state = NetState::Connecting;
+        self.state = InetState::Connecting;
 
         let mut stream = None;
         for a in &addrs {
@@ -184,7 +184,7 @@ impl NetConnection {
         let stream = match stream {
             Some(s) => s,
             None => {
-                self.state = NetState::Disconnected;
+                self.state = InetState::Disconnected;
                 return Err(PilotError::SockIo);
             }
         };
@@ -198,7 +198,7 @@ impl NetConnection {
 
         self.stream = Some(stream);
         self.nonblocking = false;
-        self.state = NetState::Connected;
+        self.state = InetState::Connected;
         Ok(())
     }
 
@@ -207,17 +207,17 @@ impl NetConnection {
         // Dropping the TcpStream closes the connection
         self.stream = None;
         self.listener = None;
-        self.state = NetState::Disconnected;
+        self.state = InetState::Disconnected;
         Ok(())
     }
 
     /// Check if connected
     pub fn is_connected(&self) -> bool {
-        self.stream.is_some() && self.state == NetState::Connected
+        self.stream.is_some() && self.state == InetState::Connected
     }
 
     /// Get the current connection state
-    pub fn state(&self) -> NetState {
+    pub fn state(&self) -> InetState {
         self.state
     }
 
@@ -266,7 +266,7 @@ impl NetConnection {
     }
 }
 
-impl Read for NetConnection {
+impl Read for InetConnection {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let stream = self.stream.as_mut().ok_or_else(|| {
             std::io::Error::new(
@@ -288,7 +288,7 @@ impl Read for NetConnection {
     }
 }
 
-impl Write for NetConnection {
+impl Write for InetConnection {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let stream = self.stream.as_mut().ok_or_else(|| {
             std::io::Error::new(
@@ -327,7 +327,7 @@ impl Write for NetConnection {
     }
 }
 
-impl Connection for NetConnection {
+impl Connection for InetConnection {
     fn connect(&mut self) -> Result<()> {
         self.connect()
     }
@@ -343,7 +343,7 @@ impl Connection for NetConnection {
     fn state(&self) -> ConnectionState {
         if self.is_connected() {
             ConnectionState::Connected
-        } else if self.state == NetState::Connecting {
+        } else if self.state == InetState::Connecting {
             ConnectionState::Connecting
         } else {
             ConnectionState::Disconnected
@@ -381,9 +381,9 @@ impl Connection for NetConnection {
     }
 }
 
-impl std::fmt::Debug for NetConnection {
+impl std::fmt::Debug for InetConnection {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("NetConnection")
+        f.debug_struct("InetConnection")
             .field("host", &self.params.host)
             .field("port", &self.params.port)
             .field("timeout", &self.params.timeout)
@@ -422,11 +422,11 @@ mod tests {
     #[test]
     fn test_net_connection_initial_state() {
         let params = NetParams::new("192.168.1.100");
-        let conn = NetConnection::new(params);
+        let conn = InetConnection::new(params);
         assert!(!conn.is_connected());
         assert_eq!(conn.host(), "192.168.1.100");
         assert_eq!(conn.port(), 14237);
-        assert_eq!(conn.state(), NetState::Disconnected);
+        assert_eq!(conn.state(), InetState::Disconnected);
         assert_eq!(conn.rx_bytes(), 0);
         assert_eq!(conn.tx_bytes(), 0);
         assert_eq!(conn.rx_errors(), 0);
@@ -436,16 +436,16 @@ mod tests {
     #[test]
     fn test_net_connection_disconnect_when_not_connected() {
         let params = NetParams::new("192.168.1.100");
-        let mut conn = NetConnection::new(params);
+        let mut conn = InetConnection::new(params);
         // Should be a no-op, not panic
         assert!(conn.disconnect().is_ok());
-        assert_eq!(conn.state(), NetState::Disconnected);
+        assert_eq!(conn.state(), InetState::Disconnected);
     }
 
     #[test]
     fn test_net_connection_read_when_not_connected() {
         let params = NetParams::new("192.168.1.100");
-        let mut conn = NetConnection::new(params);
+        let mut conn = InetConnection::new(params);
         let mut buf = [0u8; 16];
         let result = conn.read(&mut buf);
         assert!(result.is_err());
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_net_connection_write_when_not_connected() {
         let params = NetParams::new("192.168.1.100");
-        let mut conn = NetConnection::new(params);
+        let mut conn = InetConnection::new(params);
         let result = conn.write(b"hello");
         assert!(result.is_err());
         assert_eq!(result.unwrap_err().kind(), std::io::ErrorKind::NotConnected);
@@ -464,7 +464,7 @@ mod tests {
     #[test]
     fn test_net_connection_set_timeout() {
         let params = NetParams::new("192.168.1.100");
-        let mut conn = NetConnection::new(params);
+        let mut conn = InetConnection::new(params);
         let new_timeout = Duration::from_secs(5);
         conn.set_timeout(new_timeout);
         assert_eq!(conn.timeout(), new_timeout);
@@ -473,7 +473,7 @@ mod tests {
     #[test]
     fn test_net_connection_debug() {
         let params = NetParams::new("192.168.1.100");
-        let conn = NetConnection::new(params);
+        let conn = InetConnection::new(params);
         let debug_str = format!("{:?}", conn);
         assert!(debug_str.contains("192.168.1.100"));
         assert!(debug_str.contains("14237"));

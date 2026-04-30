@@ -14,7 +14,7 @@ pub use serial::Serial;
 #[cfg(feature = "usb")]
 pub use usb::Usb;
 #[cfg(feature = "net")]
-pub use net::{NetConnection, NetParams, NetState};
+pub use net::{InetConnection, NetParams, InetState};
 
 use std::io::{Read, Write};
 use async_trait::async_trait;

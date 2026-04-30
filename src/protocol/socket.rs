@@ -9,7 +9,7 @@ use crate::transport::Serial;
 #[cfg(feature = "usb")]
 use crate::transport::Usb;
 #[cfg(feature = "net")]
-use crate::transport::{NetConnection, NetParams};
+use crate::transport::{InetConnection, NetParams};
 use crate::transport::MockConnection;
 use crate::protocol::dlp::{DlpClient, ProtocolVersion};
 use std::io::{Read, Write};
@@ -40,7 +40,7 @@ pub enum ProtocolFamily {
     /// USB connection
     Usb,
     /// Network (TCP/IP)
-    Net,
+    Inet,
     /// Bluetooth
     Bluetooth,
 }
@@ -82,7 +82,7 @@ pub enum TransportConnection {
     #[cfg(feature = "usb")]
     Usb(Usb),
     #[cfg(feature = "net")]
-    Net(NetConnection),
+    Inet(InetConnection),
     Mock(MockConnection),
 }
 
@@ -94,7 +94,7 @@ impl TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.is_connected(),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.is_connected(),
+            TransportConnection::Inet(n) => n.is_connected(),
             TransportConnection::Mock(m) => m.is_connected(),
         }
     }
@@ -106,7 +106,7 @@ impl TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.connect(),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.connect(),
+            TransportConnection::Inet(n) => n.connect(),
             TransportConnection::Mock(m) => m.connect(),
         }
     }
@@ -118,7 +118,7 @@ impl TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.disconnect(),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.disconnect(),
+            TransportConnection::Inet(n) => n.disconnect(),
             TransportConnection::Mock(m) => m.disconnect(),
         }
     }
@@ -132,7 +132,7 @@ impl Read for TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.read(buf),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.read(buf),
+            TransportConnection::Inet(n) => n.read(buf),
             TransportConnection::Mock(m) => m.read(buf),
         }
     }
@@ -146,7 +146,7 @@ impl Write for TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.write(buf),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.write(buf),
+            TransportConnection::Inet(n) => n.write(buf),
             TransportConnection::Mock(m) => m.write(buf),
         }
     }
@@ -158,7 +158,7 @@ impl Write for TransportConnection {
             #[cfg(feature = "usb")]
             TransportConnection::Usb(u) => u.flush(),
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => n.flush(),
+            TransportConnection::Inet(n) => n.flush(),
             TransportConnection::Mock(m) => m.flush(),
         }
     }
@@ -227,21 +227,21 @@ impl PilotSocket {
     /// Create a stream socket for TCP/IP network HotSync
     #[cfg(feature = "net")]
     pub fn net(host: &str, port: u16) -> Self {
-        let mut socket = Self::new(ProtocolFamily::Net, SocketType::Stream);
+        let mut socket = Self::new(ProtocolFamily::Inet, SocketType::Stream);
         let params = NetParams::new(host).with_port(port);
-        socket.transport = Some(TransportConnection::Net(NetConnection::new(params)));
+        socket.transport = Some(TransportConnection::Inet(InetConnection::new(params)));
         socket
     }
 
     /// Create a listening stream socket for TCP/IP network HotSync
     #[cfg(feature = "net")]
     pub fn net_listen(bind_addr: &str, port: u16) -> Result<Self> {
-        let mut socket = Self::new(ProtocolFamily::Net, SocketType::Stream);
+        let mut socket = Self::new(ProtocolFamily::Inet, SocketType::Stream);
         let params = NetParams::new(bind_addr).with_port(port);
-        let mut conn = NetConnection::new(params);
+        let mut conn = InetConnection::new(params);
         conn.bind(format!("{}:{}", bind_addr, port))?;
         conn.listen()?;
-        socket.transport = Some(TransportConnection::Net(conn));
+        socket.transport = Some(TransportConnection::Inet(conn));
         socket.state = SocketState::Listening;
         Ok(socket)
     }
@@ -284,7 +284,7 @@ impl PilotSocket {
 
         match &mut transport {
             #[cfg(feature = "net")]
-            TransportConnection::Net(n) => {
+            TransportConnection::Inet(n) => {
                 n.accept()?;
             }
             _ => return Err(PilotError::SockInvalid),
