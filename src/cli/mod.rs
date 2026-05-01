@@ -12,6 +12,7 @@ use crate::error::Result;
 use crate::PilotSocket;
 
 /// Connect to a Palm device based on CLI arguments
+#[allow(unused_variables)]
 pub async fn connect(port: Option<&str>, host: Option<&str>) -> Result<PilotSocket> {
     #[cfg(feature = "serial")]
     if let Some(p) = port {
