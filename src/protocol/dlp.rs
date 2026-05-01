@@ -294,8 +294,7 @@ impl SystemInfo {
 }
 
 /// User information
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct UserInfo {
     /// Username
     pub username: String,
@@ -615,9 +614,11 @@ impl DlpResponse {
 
     /// Get argument as u8
     pub fn get_u8(&self, index: usize) -> Result<u8> {
-        self.get_arg(index)
-            .and_then(|d| d.first().copied())
-            .ok_or(PilotError::Unimplemented)
+        let data = self.get_arg(index).ok_or(PilotError::InvalidArgument)?;
+        if data.is_empty() {
+            return Err(PilotError::InvalidArgument);
+        }
+        Ok(data[0])
     }
 
     /// Get argument as u16
@@ -842,6 +843,8 @@ impl DlpClient {
                     if wouldblock_count > MAX_WOULDBLOCK_RETRIES {
                         return Err(PilotError::SockTimeout);
                     }
+                    // Small yield to avoid CPU spinning on slow transports
+                    std::thread::sleep(std::time::Duration::from_micros(100));
                     continue;
                 }
                 Err(_) => return Err(PilotError::SockIo),
@@ -1143,7 +1146,7 @@ impl DlpClient {
         req.add_u32(start);
         
         let response = self.send_request(&req).await?;
-        
+
         // Parse database list from response.
         // Each database entry spans multiple consecutive args. The exact count
         // varies by DLP version (typically 13-14 args per entry). We parse in
@@ -1152,7 +1155,7 @@ impl DlpClient {
         let mut databases = Vec::new();
         let mut db_offset = 0;
 
-        while db_offset < response.args.len() {
+        while db_offset + ARGS_PER_DB <= response.args.len() {
             let info = DatabaseInfo {
                 name:            response.get_string(db_offset).unwrap_or_default(),
                 flags:           DatabaseFlags::from_bits_truncate(
@@ -1161,7 +1164,7 @@ impl DlpClient {
                                     response.get_u32(db_offset + 2).unwrap_or(0)),
                 creator:         FourCharCode::from_u32(
                                     response.get_u32(db_offset + 3).unwrap_or(0)),
-                card_no:         response.get_u16(db_offset + 4).unwrap_or(0),
+                card_no:         response.get_u8(db_offset + 4).unwrap_or(0),
                 db_id:           response.get_u32(db_offset + 5).unwrap_or(0),
                 created:         PalmDateTime::from_palm_time(
                                     response.get_u32(db_offset + 6).unwrap_or(0)),
@@ -1301,7 +1304,7 @@ impl DlpClient {
                                     response.get_u32(3).unwrap_or(0)),
                 creator:         FourCharCode::from_u32(
                                     response.get_u32(4).unwrap_or(0)),
-                card_no:         response.get_u16(5).unwrap_or(card_no as u16),
+                card_no:         response.get_u8(5).unwrap_or(card_no),
                 db_id:           response.get_u32(6).unwrap_or(handle as u32),
                 created:         PalmDateTime::from_palm_time(
                                     response.get_u32(7).unwrap_or(0)),
@@ -1320,7 +1323,7 @@ impl DlpClient {
         } else {
             DatabaseInfo {
                 num_records: num_recs,
-                card_no: card_no as u16,
+                card_no,
                 db_id: handle as u32,
                 ..Default::default()
             }
@@ -1359,7 +1362,7 @@ impl DlpClient {
                                 response.get_u32(3).unwrap_or(0)),
             creator:         FourCharCode::from_u32(
                                 response.get_u32(4).unwrap_or(0)),
-            card_no:         response.get_u16(5).unwrap_or(card_no as u16),
+            card_no:         response.get_u8(5).unwrap_or(card_no),
             db_id:           response.get_u32(6).unwrap_or(0),
             created:         PalmDateTime::from_palm_time(
                                 response.get_u32(7).unwrap_or(0)),

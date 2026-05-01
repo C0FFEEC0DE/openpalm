@@ -4,16 +4,13 @@
 //! including database headers, records, and app info blocks.
 
 use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime, OpenMode};
+use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime, OpenMode, CardNo};
 
 /// Database handle (returned by open operations)
 pub type DatabaseHandle = u8;
 
 /// Record ID (unique within database)
 pub type RecordId = u32;
-
-/// Card number
-pub type CardNo = u16;
 
 /// Maximum database name length
 pub const MAX_DBP_NAME_LEN: usize = 32;

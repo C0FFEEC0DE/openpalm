@@ -304,6 +304,10 @@ impl PilotSocket {
 
     /// Disconnect from device
     pub fn disconnect(&mut self) -> Result<()> {
+        // Attempt to disconnect the transport
+        // Note: We must hold the lock during disconnect() since TransportConnection
+        // is behind a mutex. The disconnect I/O is typically fast (USB reset or
+        // TCP close), so this is acceptable in practice.
         if let Some(ref client) = self.dlp_client {
             let arc = client.transport();
             let mut transport = arc.lock().unwrap();
