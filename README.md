@@ -7,7 +7,8 @@ A modern Rust port of the pilot-link project, providing a complete implementatio
 ## Features
 
 - **Full DLP 1.4 Protocol** - 81 Desktop Link Protocol functions with full typed wrapper coverage
-- **Multiple Transports** - Serial, USB, and Bluetooth support
+- **Multiple Transports** - Serial, USB, TCP/IP, and Bluetooth support
+- **CLI Tool** - Full command-line interface (`palm`) for device operations
 - **16 Record Types** - Address, Calendar, Todo, Memo, Expense, Mail, and more
 - **VFS Support** - Virtual File System for expansion cards
 - **Async/Await** - First-class async support with Tokio
@@ -123,6 +124,54 @@ fn test_with_mock() {
 }
 ```
 
+## CLI Tool
+
+OpenPalm includes a `palm` CLI binary for quick device operations:
+
+### Build
+
+```bash
+cargo build --release --bin palm
+```
+
+### Usage
+
+```bash
+# Device info over serial
+palm --port /dev/ttyUSB0 info
+
+# List databases over network
+palm --host 192.168.1.100 db list
+
+# Export a database to PDB
+palm --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
+
+# Read a record
+palm --port /dev/ttyUSB0 record read --db MemoDB --index 0
+
+# Network HotSync server
+palm server --bind 0.0.0.0 --port 14238
+```
+
+### Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `info` | Show device system and user info |
+| `db list` | List all databases |
+| `db info <name>` | Show database details |
+| `db dump <name>` | Dump records to stdout |
+| `db create <name>` | Create a new database |
+| `db delete <name>` | Delete a database |
+| `db export <name>` | Export to PDB file |
+| `record list <db>` | List records in a database |
+| `record read <db> <index>` | Read a specific record |
+| `sync` | Sync with device |
+| `vfs volumes` | List VFS volumes |
+| `datetime show` | Show device datetime |
+| `datetime set` | Set device datetime to system time |
+| `server` | Start network HotSync server |
+
 ## Record Types
 
 OpenPalm provides parsing and serialization for all major Palm OS record types:
@@ -233,11 +282,12 @@ GPL-2.0 or later
 
 ## Status
 
-**All core implementation complete (39/39 files)**
+**All core implementation complete (42/42 files)**
 
-- 169 tests passing
+- 183 tests passing
 - DLP 1.4 protocol: 81 functions, all with typed wrappers or escape hatch access
 - All 16 record types implemented
-- Transport layer: serial + USB (feature-gated)
+- Transport layer: serial + USB + TCP/IP (feature-gated)
+- Full CLI with 12+ commands
 - VFS operations in DlpClient
 - Mock connection available for testing
