@@ -13,18 +13,29 @@ use crate::PilotSocket;
 
 /// Connect to a Palm device based on CLI arguments
 pub async fn connect(port: Option<&str>, host: Option<&str>) -> Result<PilotSocket> {
-    let mut socket = match (port, host) {
-        #[cfg(feature = "serial")]
-        (Some(p), _) => PilotSocket::serial(p),
-        #[cfg(feature = "net")]
-        (_, Some(h)) => PilotSocket::net(h, 14238),
-        #[cfg(feature = "usb")]
-        _ => PilotSocket::usb(),
-        #[cfg(not(any(feature = "serial", feature = "usb", feature = "net")))]
-        _ => return Err(PilotError::SockInvalid),
-    };
-    socket.connect()?;
-    Ok(socket)
+    #[cfg(feature = "serial")]
+    if let Some(p) = port {
+        let mut socket = PilotSocket::serial(p);
+        socket.connect()?;
+        return Ok(socket);
+    }
+
+    #[cfg(feature = "net")]
+    if let Some(h) = host {
+        let mut socket = PilotSocket::net(h, 14238);
+        socket.connect()?;
+        return Ok(socket);
+    }
+
+    #[cfg(feature = "usb")]
+    {
+        let mut socket = PilotSocket::usb();
+        socket.connect()?;
+        Ok(socket)
+    }
+
+    #[cfg(not(any(feature = "serial", feature = "usb", feature = "net")))]
+    return Err(crate::error::PilotError::SockInvalid);
 }
 
 /// Execute a command with a connected socket, ensuring disconnect is always called
@@ -59,5 +70,34 @@ pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
             print!("{:w$}  ", cell, w = widths[i]);
         }
         println!();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_print_table_empty() {
+        print_table(&["Name", "Value"], &[]);
+    }
+
+    #[test]
+    fn test_print_table_with_data() {
+        print_table(
+            &["Name", "Value"],
+            &[vec!["test".to_string(), "123".to_string()]],
+        );
+    }
+
+    #[test]
+    fn test_print_table_multiple_rows() {
+        print_table(
+            &["A", "B", "C"],
+            &[
+                vec!["1".to_string(), "2".to_string(), "3".to_string()],
+                vec!["longer".to_string(), "x".to_string(), "y".to_string()],
+            ],
+        );
     }
 }

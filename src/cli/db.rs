@@ -142,7 +142,7 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
     header.creator = db_info.1.creator.to_u32();
     header.unique_id_seed = 0;
     header.next_rec_list_id = 0;
-    header.num_records = db_info.1.num_records as u16;
+    header.num_records = db_info.1.num_records;
     header.unique_record_seed = 0;
     
     file.write_all(&header.to_bytes())

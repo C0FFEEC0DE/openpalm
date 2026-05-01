@@ -167,7 +167,7 @@ pub struct DatabaseHeader {
     /// Next record list ID
     pub next_rec_list_id: u32,
     /// Number of records
-    pub num_records: u16,
+    pub num_records: u32,
     /// Unique record ID seed (for this header)
     pub unique_record_seed: u16,
     /// Reserved (2 bytes)
@@ -196,11 +196,11 @@ impl DatabaseHeader {
         header.creator = u32::from_be_bytes([data[64], data[65], data[66], data[67]]);
         header.unique_id_seed = u32::from_be_bytes([data[68], data[69], data[70], data[71]]);
         header.next_rec_list_id = u32::from_be_bytes([data[72], data[73], data[74], data[75]]);
-        header.num_records = u16::from_be_bytes([data[76], data[77]]);
-        header.unique_record_seed = u16::from_be_bytes([data[78], data[79]]);
-        header._reserved.copy_from_slice(&data[80..82]);
-        
-        // Skip padding bytes 82..86
+        header.num_records = u32::from_be_bytes([data[76], data[77], data[78], data[79]]);
+        header.unique_record_seed = u16::from_be_bytes([data[80], data[81]]);
+        header._reserved.copy_from_slice(&data[82..84]);
+
+        // Skip padding bytes 84..86
         
         Ok(header)
     }
@@ -222,11 +222,11 @@ impl DatabaseHeader {
         data[64..68].copy_from_slice(&self.creator.to_be_bytes());
         data[68..72].copy_from_slice(&self.unique_id_seed.to_be_bytes());
         data[72..76].copy_from_slice(&self.next_rec_list_id.to_be_bytes());
-        data[76..78].copy_from_slice(&self.num_records.to_be_bytes());
-        data[78..80].copy_from_slice(&self.unique_record_seed.to_be_bytes());
-        data[80..82].copy_from_slice(&self._reserved);
+        data[76..80].copy_from_slice(&self.num_records.to_be_bytes());
+        data[80..82].copy_from_slice(&self.unique_record_seed.to_be_bytes());
+        data[82..84].copy_from_slice(&self._reserved);
         // Pad to 86 bytes total
-        data[82..86].copy_from_slice(&[0u8; 4]);
+        data[84..86].copy_from_slice(&[0u8; 2]);
         
         data
     }

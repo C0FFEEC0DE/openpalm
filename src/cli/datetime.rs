@@ -16,7 +16,7 @@ pub async fn show(socket: &mut PilotSocket) -> Result<()> {
 pub async fn set_now(socket: &mut PilotSocket) -> Result<()> {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
+        .map_err(|e| PilotError::InvalidData(format!("System clock before Unix epoch: {}", e)))?
         .as_secs() as i64;
     let palm_dt = PalmDateTime::from_unix(now);
     socket.dlp().ok_or(PilotError::DlpSocket)?.set_sys_datetime(palm_dt).await?;
