@@ -252,3 +252,77 @@ Fix all remaining bugs identified in the second code review (@cr pass 2).
 ### Remaining Risks
 - `ARGS_PER_DB = 14` constant for read_db_list chunking — may need adjustment per DLP version
 - `MAX_WOULDBLOCK_RETRIES = 10000` — threshold may need tuning per transport speed
+
+---
+
+## 12. Network Transport + CLI Implementation (2026-04-30 — 2026-05-01)
+
+### Goal
+Add TCP/IP network transport for Palm HotSync and implement a full CLI matching pilot-link semantics.
+
+### Changes
+
+| File | Changes |
+|---|---|
+| `src/transport/net.rs` (new) | `InetConnection` — TCP/IP transport: client connect, server bind/listen/accept, stats (`rx`/`tx` bytes/errors), `drain_input()` (non-blocking drain), `InetState` enum |
+| `src/transport/mod.rs` | `Connection` trait with `drain_input()` (renamed from `flush` to avoid `Write::flush` collision); `AsyncConnectionAdapter` updated |
+| `src/transport/serial.rs` | `Connection` trait impl for `Serial` |
+| `src/transport/usb.rs` | `Connection` trait impl for `Usb`; SAFETY comments for `unsafe impl Send` and const→mut cast |
+| `src/protocol/socket.rs` | `PilotSocket::net()` (client), `net_listen()`/`accept()` (server); `TransportConnection::Inet` variant; `dlp()` accessor |
+| `src/main.rs` | Full CLI with `clap` derive: `--port`, `--host`, subcommands `info`, `db`, `record`, `resource`, `sync`, `vfs`, `datetime`, `server` |
+| `src/cli/mod.rs` | `connect()` (auto-detects serial/network/USB), `print_table()` (aligned output), `with_connection()` RAII helper |
+| `src/cli/db.rs` | Database commands: list, info, dump, create, delete, export to PDB |
+| `src/cli/device.rs` | Device info (sys/user) |
+| `src/cli/datetime.rs` | Show/set device datetime |
+| `src/cli/record.rs` | Record list/read |
+| `src/cli/resource.rs` | Resource list |
+| `src/cli/sync.rs` | Sync command |
+| `src/cli/vfs.rs` | VFS volumes |
+| `Cargo.toml` | Added `clap` (derive), `serde_json`, `net` feature, `[[bin]] palm` |
+| `src/lib.rs` | Lint suppressions for pre-existing warnings |
+| `CHANGELOG.md` | Updated with all network transport and CLI changes |
+
+### Code Review Findings — All Fixed
+
+**Transport layer (7/7):**
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | CRITICAL | `PilotSocket::net_listen()` never called `conn.listen()` | Added `conn.listen()?;` after bind |
+| 2 | HIGH | `Connection::flush` / `Write::flush` semantic collision | Renamed to `drain_input()` |
+| 3 | HIGH | `NetConnection::write` lost partial progress on `Ok(0)` | Returns `Ok(total)` if bytes > 0 |
+| 4 | MEDIUM | `drain_input` didn't count `rx_bytes` | Added increment in drain loop |
+| 5 | MEDIUM | USB `Send` and const→mut cast without SAFETY | Added SAFETY comments |
+| 6 | MEDIUM | `read`/`write` looped until full buffer (violates `Read`/`Write`) | Removed loops, single partial transfer |
+| 7 | LOW | `NetConnection`/`NetState` name collision with `protocol::net` | Renamed to `InetConnection`/`InetState` |
+
+**CLI layer (9/9):**
+| # | Severity | Issue | Fix |
+|---|----------|-------|-----|
+| 1 | CRITICAL | `socket.dlp().unwrap()` panic risk (8 locations) | Replaced with `ok_or(DlpSocket)?` |
+| 2 | CRITICAL | Missing `#[cfg(feature = "usb")]` on USB fallback | Added feature gate |
+| 3 | HIGH | Silent validation failure (`creator.len != 4`) | Returns `Err(InvalidArgument)` |
+| 4 | MEDIUM | u16 truncation in PDB export (>65535 records) | `DatabaseHeader.num_records` → u32 |
+| 5 | MEDIUM | Erased I/O error context | `PilotError::FileError(String)` preserves message |
+| 6 | MEDIUM | Clock skew silent fallback | Explicit error instead of `unwrap_or_default()` |
+| 7 | MEDIUM | Missing RAII disconnect on error paths | `with_connection()` helper always disconnects |
+| 8 | INFO | No CLI tests | Added 3 tests for `print_table()` |
+
+### Verification
+| Check | Result |
+|---|---|
+| `cargo check --all-features` | 0 errors |
+| `cargo test --all-features` | 183 passed, 0 failed (+3 new CLI tests) |
+| `cargo clippy --all-targets --all-features -- -D warnings` | 0 warnings |
+
+### Subagents Used
+| Role | Agent | Result |
+|---|---|---|
+| @a (Architect) | Plan network transport implementation | Client+server TCP, stats, drain_input, Connection trait |
+| @bug (Bugbuster) | Implement Connection trait + stats | NetConnection, Serial, Usb; 180 tests pass |
+| @cr (Code Reviewer) | Audit uncommitted transport changes | 7 findings (1 critical, 2 high, 3 medium, 1 low) |
+| @cr (Code Reviewer) | Audit CLI implementation | 9 findings (2 critical, 1 high, 4 medium, 2 info) |
+| @bug (Bugbuster) | Fix CLI findings | 5 fixes; 180 tests pass |
+| @bug (Bugbuster) | Fix remaining 3 findings | u16→u32, clock skew, CLI tests; 183 tests pass |
+
+### Remaining Risks
+- None identified
