@@ -36,6 +36,7 @@ pub mod sync;
 pub mod records;
 pub mod vfs;
 pub mod utils;
+pub mod cli;
 
 // Re-export commonly used types
 pub use error::{PilotError, Result, DlpError, VfsError};

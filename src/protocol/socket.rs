@@ -275,6 +275,7 @@ impl PilotSocket {
     }
 
     /// Accept an incoming connection (server mode)
+    #[allow(unused_mut)]
     pub fn accept(&mut self) -> Result<()> {
         if self.state != SocketState::Listening {
             return Err(PilotError::SockInvalid);
@@ -282,17 +283,23 @@ impl PilotSocket {
 
         let mut transport = self.transport.take().ok_or(PilotError::SockInvalid)?;
 
-        match &mut transport {
-            #[cfg(feature = "net")]
-            TransportConnection::Inet(n) => {
-                n.accept()?;
+        #[cfg(feature = "net")]
+        {
+            match &mut transport {
+                TransportConnection::Inet(n) => {
+                    n.accept()?;
+                }
+                _ => return Err(PilotError::SockInvalid),
             }
-            _ => return Err(PilotError::SockInvalid),
+            self.state = SocketState::Connected;
+            self.dlp_client = Some(DlpClient::new(transport));
+            Ok(())
         }
-
-        self.state = SocketState::Connected;
-        self.dlp_client = Some(DlpClient::new(transport));
-        Ok(())
+        #[cfg(not(feature = "net"))]
+        {
+            let _ = transport;
+            Err(PilotError::SockInvalid)
+        }
     }
 
     /// Disconnect from device
