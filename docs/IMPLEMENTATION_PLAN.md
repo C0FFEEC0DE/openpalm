@@ -41,6 +41,7 @@ Rust port of pilot-link library (~30,000 lines of C code). This document tracks 
 | `src/transport/mod.rs` | ✅ DONE | Connection trait, MockConnection |
 | `src/transport/serial.rs` | ✅ DONE | Serial port (needs serial feature) |
 | `src/transport/usb.rs` | ✅ DONE | USB (needs libusb) |
+| `src/transport/net.rs` | ✅ DONE | TCP/IP transport (InetConnection, client/server)
 
 ---
 
@@ -91,7 +92,23 @@ Rust port of pilot-link library (~30,000 lines of C code). This document tracks 
 
 ---
 
-## Phase 8: Utilities ✅ DONE
+## Phase 8: CLI & Binary ✅ DONE
+
+| File | Status | Notes |
+|------|--------|-------|
+| `src/main.rs` | ✅ DONE | `palm` binary entry point |
+| `src/cli/mod.rs` | ✅ DONE | Shared helpers: connect, print_table, with_connection |
+| `src/cli/db.rs` | ✅ DONE | Database commands (list, info, dump, create, delete, export) |
+| `src/cli/device.rs` | ✅ DONE | Device info commands |
+| `src/cli/datetime.rs` | ✅ DONE | DateTime show/set commands |
+| `src/cli/record.rs` | ✅ DONE | Record list/read commands |
+| `src/cli/resource.rs` | ✅ DONE | Resource list commands |
+| `src/cli/sync.rs` | ✅ DONE | Sync command |
+| `src/cli/vfs.rs` | ✅ DONE | VFS volume commands |
+
+---
+
+## Phase 9: Utilities ✅ DONE
 
 | File | Status | Notes |
 |------|--------|-------|
@@ -108,24 +125,25 @@ Rust port of pilot-link library (~30,000 lines of C code). This document tracks 
 |-------|-------|--------|---------|
 | Phase 1: Core | 6 | 6 | 0 |
 | Phase 2: Protocol | 7 | 7 | 0 |
-| Phase 3: Transport | 3 | 3 | 0 |
+| Phase 3: Transport | 4 | 4 | 0 |
 | Phase 4: Database | 1 | 1 | 0 |
 | Phase 5: Records | 16 | 16 | 0 |
 | Phase 6: VFS | 1 | 1 | 0 |
 | Phase 7: Sync | 1 | 1 | 0 |
-| Phase 8: Utils | 4 | 4 | 0 |
-| **TOTAL** | **39** | **39** | **0** |
+| Phase 8: CLI & Binary | 9 | 9 | 0 |
+| Phase 9: Utils | 4 | 4 | 0 |
+| **TOTAL** | **49** | **49** | **0** |
 
-**Progress: 100% (39/39 files) - COMPLETE! 🎉**
+**Progress: 100% (49/49 files) - COMPLETE! 🎉**
 
 ---
 
 ## Test Results
 
 ```
-running 169 tests
+running 183 tests
   error::tests::test_* ... ok (4 tests)
-  protocol::dlp::tests::test_* ... ok (5 tests)
+  protocol::dlp::tests::test_* ... ok (25 tests)
   protocol::slp::tests::test_* ... ok (4 tests)
   protocol::padp::tests::test_* ... ok (4 tests)
   protocol::net::tests::test_* ... ok (3 tests)
@@ -156,8 +174,9 @@ running 169 tests
   utils::debug::tests::test_* ... ok (3 tests)
   utils::sys::tests::test_* ... ok (2 tests)
   vfs::tests::test_* ... ok (3 tests)
+  cli::tests::test_* ... ok (3 tests)
 
-test result: ok. 169 passed; 0 failed
+test result: ok. 183 passed; 0 failed
 ```
 
 ---
@@ -166,9 +185,9 @@ test result: ok. 169 passed; 0 failed
 
 | Category | Count |
 |----------|-------|
-| Total Files | 39 |
-| Tests | 169 |
-| Lines of Rust | ~10,000+ |
+| Total Files | 49 |
+| Tests | 183 |
+| Lines of Rust | ~11,000+ |
 | Doc Comments | Complete |
 
 ---
@@ -189,10 +208,11 @@ test result: ok. 169 passed; 0 failed
 │  ├── PADP reliable channel                                   │
 │  └── PilotSocket connection manager                          │
 ├─────────────────────────────────────────────────────────────┤
-│  Transport (Serial, USB, Mock)                              │
+│  Transport (Serial, USB, TCP/IP, Mock)                    │
 │  ├── Connection trait for async I/O                         │
 │  ├── Serial port support                                     │
-│  └── USB HotSync support                                    │
+│  ├── USB HotSync support                                    │
+│  └── TCP/IP network transport (client/server)              │
 ├─────────────────────────────────────────────────────────────┤
 │  Database (Database, Record, Headers)                        │
 │  ├── DatabaseInfo, Record, RecordId                          │
@@ -212,6 +232,11 @@ test result: ok. 169 passed; 0 failed
 │  ├── SyncHandler for sync management                         │
 │  ├── SyncProcessor for record processing                     │
 │  └── SyncSession for session state                           │
+├─────────────────────────────────────────────────────────────┤
+│  CLI (palm binary)                                           │
+│  ├── info, db, record, resource, sync, vfs, datetime        │
+│  ├── PDB export                                              │
+│  └── Network HotSync server                                  │
 ├─────────────────────────────────────────────────────────────┤
 │  Utils (CRC, MD5, Debug, System)                             │
 │  ├── CRC16/32, hex encoding, alignment                      │
@@ -236,6 +261,7 @@ test result: ok. 169 passed; 0 failed
 - ✅ Connection trait with async support
 - ✅ Serial port communication
 - ✅ USB HotSync support
+- ✅ TCP/IP network transport (client/server, stats, drain_input)
 - ✅ MockConnection for testing
 
 ### Record Types
@@ -244,8 +270,15 @@ test result: ok. 169 passed; 0 failed
 - ✅ AppInfo structures for metadata
 - ✅ Constants for database types/creators
 
+### CLI
+- ✅ `palm` binary with 12+ subcommands
+- ✅ Device info, database operations, record/resource access
+- ✅ VFS volume listing, datetime show/set
+- ✅ Network HotSync server mode
+- ✅ PDB export support
+
 ### Testing
-- ✅ 169 tests passing
+- ✅ 183 tests passing
 - ✅ 100% coverage on core modules
 - ✅ Integration test support
 
