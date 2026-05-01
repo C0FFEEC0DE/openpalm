@@ -132,6 +132,110 @@ async fn test_mock_get_sys_datetime() {
     assert_eq!(dt.to_palm(), 0x30295296);
 }
 
+/// Build a raw DLP response for `ReadStorageInfo`.
+fn build_read_storage_info_response() -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::ReadStorageInfo as u8, // 0x15
+        6,                                     // argc
+        DlpErrorCode::NoError as u8,          // 0x00
+        0,                                    // flags
+    ];
+
+    // Arg 0: version = 1 (i32, LE)
+    data.push(0x04);
+    data.extend_from_slice(&1i32.to_le_bytes());
+
+    // Arg 1: rom_size = 0x00100000 (u32, LE) = 1MB
+    data.push(0x04);
+    data.extend_from_slice(&0x00100000u32.to_le_bytes());
+
+    // Arg 2: ram_size = 0x00080000 (u32, LE) = 512KB
+    data.push(0x04);
+    data.extend_from_slice(&0x00080000u32.to_le_bytes());
+
+    // Arg 3: ram_free = 0x00040000 (u32, LE) = 256KB
+    data.push(0x04);
+    data.extend_from_slice(&0x00040000u32.to_le_bytes());
+
+    // Arg 4: name = "Palm\0" (5 bytes)
+    data.push(0x05);
+    data.extend_from_slice(b"Palm\0");
+
+    // Arg 5: manufacturer = "Palm Inc\0" (9 bytes)
+    data.push(0x09);
+    data.extend_from_slice(b"Palm Inc\0");
+
+    data
+}
+
+#[tokio::test]
+async fn test_mock_read_storage_info() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_read_storage_info_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let info = dlp.read_storage_info(0).await.unwrap();
+
+    assert_eq!(info.version, 1);
+    assert_eq!(info.rom_size, 0x00100000);
+    assert_eq!(info.ram_size, 0x00080000);
+    assert_eq!(info.ram_free, 0x00040000);
+    assert_eq!(info.name, "Palm");
+    assert_eq!(info.manufacturer, "Palm Inc");
+}
+
+/// Build a raw DLP response for `ReadUserInfo`.
+fn build_read_user_info_response() -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::ReadUserInfo as u8, // 0x10
+        4,                                  // argc
+        DlpErrorCode::NoError as u8,     // 0x00
+        0,                                 // flags
+    ];
+
+    // Arg 0: user_id = 0x12345678 (u32, LE)
+    data.push(0x04);
+    data.extend_from_slice(&0x12345678u32.to_le_bytes());
+
+    // Arg 1: viewer_id = 0x00000000 (u32, LE)
+    data.push(0x04);
+    data.extend_from_slice(&0x00000000u32.to_le_bytes());
+
+    // Arg 2: username = "TestUser\0" (9 bytes)
+    data.push(0x09);
+    data.extend_from_slice(b"TestUser\0");
+
+    // Arg 3: last_sync_pc = 0x00 (u32, LE)
+    data.push(0x04);
+    data.extend_from_slice(&0u32.to_le_bytes());
+
+    data
+}
+
+#[tokio::test]
+async fn test_mock_read_user_info() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_read_user_info_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let user = dlp.read_user_info().await.unwrap();
+
+    assert_eq!(user.user_id, 0x12345678);
+    assert_eq!(user.viewer_id, 0);
+    assert_eq!(user.username, "TestUser");
+    assert_eq!(user.last_sync_pc, 0);
+}
+
 /// Verify that the request is written correctly to the mock transport.
 #[tokio::test]
 async fn test_mock_request_written() {
