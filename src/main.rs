@@ -154,120 +154,135 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             println!("Waiting for connection...");
             socket.accept()?;
             println!("Client connected!");
-            openpalm::cli::device::info(&mut socket).await?;
-            socket.disconnect()?;
+            let result = openpalm::cli::device::info(&mut socket).await;
+            let _ = socket.disconnect();
+            result?;
         }
         Commands::Sync => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::sync::sync_device(socket).await
+                }),
             ).await?;
-            openpalm::cli::sync::sync_device(&mut socket).await?;
-            socket.disconnect()?;
         }
         Commands::Info => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::device::info(socket).await
+                }),
             ).await?;
-            openpalm::cli::device::info(&mut socket).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::List } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::list(socket).await
+                }),
             ).await?;
-            openpalm::cli::db::list(&mut socket).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::Info { name } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::info(socket, &name).await
+                }),
             ).await?;
-            openpalm::cli::db::info(&mut socket, &name).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::Dump { name } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::dump(socket, &name).await
+                }),
             ).await?;
-            openpalm::cli::db::dump(&mut socket, &name).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::Create { name, creator, db_type } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::create(socket, &name, &creator, &db_type).await
+                }),
             ).await?;
-            openpalm::cli::db::create(&mut socket, &name, &creator, &db_type).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::Delete { name } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::delete(socket, &name).await
+                }),
             ).await?;
-            openpalm::cli::db::delete(&mut socket, &name).await?;
-            socket.disconnect()?;
         }
         Commands::Db { command: DbCommands::Export { name, output } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::db::export(socket, &name, &output).await
+                }),
             ).await?;
-            openpalm::cli::db::export(&mut socket, &name, &output).await?;
-            socket.disconnect()?;
         }
         Commands::Record { command: RecordCommands::List { db } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::record::list(socket, &db).await
+                }),
             ).await?;
-            openpalm::cli::record::list(&mut socket, &db).await?;
-            socket.disconnect()?;
         }
         Commands::Record { command: RecordCommands::Read { db, index } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::record::read(socket, &db, index).await
+                }),
             ).await?;
-            openpalm::cli::record::read(&mut socket, &db, index).await?;
-            socket.disconnect()?;
         }
         Commands::Resource { command: ResourceCommands::List { db } } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::resource::list(socket, &db).await
+                }),
             ).await?;
-            openpalm::cli::resource::list(&mut socket, &db).await?;
-            socket.disconnect()?;
         }
         Commands::Vfs { command: VfsCommands::Volumes } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::vfs::volumes(socket).await
+                }),
             ).await?;
-            openpalm::cli::vfs::volumes(&mut socket).await?;
-            socket.disconnect()?;
         }
         Commands::Datetime { command: DatetimeCommands::Show } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::datetime::show(socket).await
+                }),
             ).await?;
-            openpalm::cli::datetime::show(&mut socket).await?;
-            socket.disconnect()?;
         }
         Commands::Datetime { command: DatetimeCommands::Set } => {
-            let mut socket = openpalm::cli::connect(
+            openpalm::cli::with_connection(
                 cli.port.as_deref(),
                 cli.host.as_deref(),
+                |socket| Box::pin(async move {
+                    openpalm::cli::datetime::set_now(socket).await
+                }),
             ).await?;
-            openpalm::cli::datetime::set_now(&mut socket).await?;
-            socket.disconnect()?;
         }
     }
 

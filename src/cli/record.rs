@@ -1,6 +1,6 @@
 //! Record commands
 
-use crate::error::Result;
+use crate::error::{PilotError, Result};
 use crate::PilotSocket;
 use crate::cli::print_table;
 use crate::protocol::dlp::DlpOpenMode;
@@ -8,7 +8,7 @@ use crate::protocol::dlp::DlpOpenMode;
 /// List records in a database
 pub async fn list(socket: &mut PilotSocket, db_name: &str) -> Result<()> {
     let handle = socket.open_database(db_name, DlpOpenMode::Read).await?;
-    let ids = socket.dlp().unwrap().read_record_id_list(handle, false, 0, u16::MAX as u32).await?;
+    let ids = socket.dlp().ok_or(PilotError::DlpSocket)?.read_record_id_list(handle, false, 0, u16::MAX as u32).await?;
     
     let rows: Vec<Vec<String>> = ids.iter().enumerate().map(|(idx, id)| {
         vec![format!("{}", idx), format!("0x{:08X}", id)]

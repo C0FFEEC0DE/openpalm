@@ -18,10 +18,28 @@ pub async fn connect(port: Option<&str>, host: Option<&str>) -> Result<PilotSock
         (Some(p), _) => PilotSocket::serial(p),
         #[cfg(feature = "net")]
         (_, Some(h)) => PilotSocket::net(h, 14238),
+        #[cfg(feature = "usb")]
         _ => PilotSocket::usb(),
+        #[cfg(not(any(feature = "serial", feature = "usb", feature = "net")))]
+        _ => return Err(PilotError::SockInvalid),
     };
     socket.connect()?;
     Ok(socket)
+}
+
+/// Execute a command with a connected socket, ensuring disconnect is always called
+pub async fn with_connection<F>(
+    port: Option<&str>,
+    host: Option<&str>,
+    f: F,
+) -> Result<()>
+where
+    F: for<'a> FnOnce(&'a mut PilotSocket) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + 'a>>,
+{
+    let mut socket = connect(port, host).await?;
+    let result = f(&mut socket).await;
+    let _ = socket.disconnect();
+    result
 }
 
 /// Print simple aligned table

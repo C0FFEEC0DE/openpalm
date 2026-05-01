@@ -1,6 +1,6 @@
 //! Database commands
 
-use crate::error::Result;
+use crate::error::{PilotError, Result};
 use crate::PilotSocket;
 use crate::cli::print_table;
 use crate::types::FourCharCode;
@@ -54,7 +54,7 @@ pub async fn info(socket: &mut PilotSocket, name: &str) -> Result<()> {
 pub async fn dump(socket: &mut PilotSocket, name: &str) -> Result<()> {
     use crate::protocol::dlp::DlpOpenMode;
     let handle = socket.open_database(name, DlpOpenMode::Read).await?;
-    let db_info = socket.dlp().unwrap().read_open_db_info(0, handle).await?;
+    let db_info = socket.dlp().ok_or(PilotError::DlpSocket)?.read_open_db_info(0, handle).await?;
     
     println!("Dumping database: {} ({} records)", name, db_info.1.num_records);
     
@@ -87,13 +87,12 @@ pub async fn create(
     db_type: &str,
 ) -> Result<()> {
     if creator.len() != 4 || db_type.len() != 4 {
-        eprintln!("Error: creator and type must be exactly 4 characters.");
-        return Ok(());
+        return Err(PilotError::InvalidArgument);
     }
     let creator = FourCharCode::from_str(creator);
     let db_type = FourCharCode::from_str(db_type);
     
-    let card = socket.dlp().unwrap().create_db(
+    let card = socket.dlp().ok_or(PilotError::DlpSocket)?.create_db(
         creator,
         db_type,
         0,
@@ -107,7 +106,7 @@ pub async fn create(
 
 /// Delete a database
 pub async fn delete(socket: &mut PilotSocket, name: &str) -> Result<()> {
-    socket.dlp().unwrap().delete_db(0, name).await?;
+    socket.dlp().ok_or(PilotError::DlpSocket)?.delete_db(0, name).await?;
     println!("Deleted database '{}'.", name);
     Ok(())
 }
@@ -116,11 +115,11 @@ pub async fn delete(socket: &mut PilotSocket, name: &str) -> Result<()> {
 pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Result<()> {
     use crate::protocol::dlp::DlpOpenMode;
     let handle = socket.open_database(name, DlpOpenMode::Read).await?;
-    let db_info = socket.dlp().unwrap().read_open_db_info(0, handle).await?;
+    let db_info = socket.dlp().ok_or(PilotError::DlpSocket)?.read_open_db_info(0, handle).await?;
     let num_records = db_info.1.num_records as usize;
     
     let mut file = File::create(output)
-        .map_err(|_e| crate::error::PilotError::FileError)?;
+        .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
     
     // Build header
     let mut header = crate::database::DatabaseHeader::default();
@@ -147,7 +146,7 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
     header.unique_record_seed = 0;
     
     file.write_all(&header.to_bytes())
-        .map_err(|_e| crate::error::PilotError::FileError)?;
+        .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
     
     // Read all records
     let mut records = Vec::with_capacity(num_records);
@@ -167,12 +166,12 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
     let mut current_offset = header_size + entry_size * num_records as u32;
     for record in &records {
         file.write_all(&current_offset.to_be_bytes())
-            .map_err(|_e| crate::error::PilotError::FileError)?;
+            .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         file.write_all(&[record.attributes.bits()])
-            .map_err(|_e| crate::error::PilotError::FileError)?;
+            .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         let id_bytes = record.id.to_be_bytes();
         file.write_all(&id_bytes[1..4])
-            .map_err(|_e| crate::error::PilotError::FileError)?;
+            .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         current_offset += record.data.len() as u32;
     }
     
@@ -180,7 +179,7 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
     for record in &records {
         if !record.data.is_empty() {
             file.write_all(&record.data)
-                .map_err(|_e| crate::error::PilotError::FileError)?;
+                .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         }
     }
     

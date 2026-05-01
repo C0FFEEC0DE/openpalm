@@ -1,13 +1,13 @@
 //! Sync commands
 
-use crate::error::Result;
+use crate::error::{PilotError, Result};
 use crate::PilotSocket;
 use crate::cli::print_table;
 
 /// Perform a sync with the device
 pub async fn sync_device(socket: &mut PilotSocket) -> Result<()> {
     println!("Opening conduit...");
-    socket.dlp().unwrap().open_conduit().await?;
+    socket.dlp().ok_or(PilotError::DlpSocket)?.open_conduit().await?;
     
     // Get list of databases and sync
     let dbs = socket.list_databases().await?;
@@ -20,7 +20,7 @@ pub async fn sync_device(socket: &mut PilotSocket) -> Result<()> {
         let mut modified_count = 0u32;
         
         // Try to read next modified record
-        while let Ok(Some(_record)) = socket.dlp().unwrap().read_next_modified_rec(handle).await {
+        while let Ok(Some(_record)) = socket.dlp().ok_or(PilotError::DlpSocket)?.read_next_modified_rec(handle).await {
             modified_count += 1;
         }
         
@@ -38,7 +38,7 @@ pub async fn sync_device(socket: &mut PilotSocket) -> Result<()> {
     );
     
     println!("Closing conduit...");
-    socket.dlp().unwrap().end_sync(crate::protocol::dlp::DlpEndStatus::Normal).await?;
+    socket.dlp().ok_or(PilotError::DlpSocket)?.end_sync(crate::protocol::dlp::DlpEndStatus::Normal).await?;
     
     Ok(())
 }

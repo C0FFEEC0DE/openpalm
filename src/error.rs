@@ -55,7 +55,7 @@ pub enum PilotError {
     /// Invalid prc/pdb/pqa/pi_file file
     FileInvalid,
     /// Generic error when reading/writing file
-    FileError,
+    FileError(String),
     /// File transfer was aborted by progress callback
     FileAborted,
     /// Record or resource not found
@@ -116,7 +116,7 @@ impl PilotError {
             -304 => PilotError::DlpDataSize,
             -305 => PilotError::DlpCommand,
             -400 => PilotError::FileInvalid,
-            -401 => PilotError::FileError,
+            -401 => PilotError::FileError(String::new()),
             -402 => PilotError::FileAborted,
             -403 => PilotError::FileNotFound,
             -404 => PilotError::FileAlreadyExists,
@@ -155,7 +155,7 @@ impl PilotError {
             PilotError::DlpCommand => -300,
             
             PilotError::FileInvalid |
-            PilotError::FileError |
+            PilotError::FileError(_) |
             PilotError::FileAborted |
             PilotError::FileNotFound |
             PilotError::FileAlreadyExists => -400,
@@ -216,7 +216,7 @@ impl PilotError {
     pub fn is_file_error(&self) -> bool {
         matches!(self,
             PilotError::FileInvalid |
-            PilotError::FileError |
+            PilotError::FileError(_) |
             PilotError::FileAborted |
             PilotError::FileNotFound |
             PilotError::FileAlreadyExists
@@ -254,7 +254,13 @@ impl fmt::Display for PilotError {
             PilotError::DlpError(code) => write!(f, "DLP: Palm OS error code 0x{:04X}", code),
             PilotError::VfsError(code) => write!(f, "VFS: error code 0x{:04X}", code),
             PilotError::FileInvalid => write!(f, "File: invalid format"),
-            PilotError::FileError => write!(f, "File: generic error"),
+            PilotError::FileError(msg) => {
+                if msg.is_empty() {
+                    write!(f, "File: generic error")
+                } else {
+                    write!(f, "File: {}", msg)
+                }
+            }
             PilotError::FileAborted => write!(f, "File: transfer aborted"),
             PilotError::FileNotFound => write!(f, "File: not found"),
             PilotError::FileAlreadyExists => write!(f, "File: already exists"),
