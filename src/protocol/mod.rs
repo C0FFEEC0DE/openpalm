@@ -10,7 +10,7 @@ pub mod padp;
 pub mod net;
 pub mod syspkt;
 
-pub use socket::PilotSocket;
+pub use socket::{PilotSocket, TransportConnection};
 pub use dlp::{DlpArg, DlpClient, DlpRequest, DlpResponse, ProtocolVersion};
 pub use slp::{SlpConnection, SlpPacket, SlpPacketType, SlpState};
 pub use padp::{PadpConnection, PadpPacket, PadpType, PadpFlags, PadpState};
