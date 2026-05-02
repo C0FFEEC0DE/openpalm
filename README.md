@@ -138,19 +138,19 @@ cargo build --release --bin palm
 
 ```bash
 # Device info over serial
-palm --port /dev/ttyUSB0 info
+op-cli --port /dev/ttyUSB0 info
 
 # List databases over network
-palm --host 192.168.1.100 db list
+op-cli --host 192.168.1.100 db list
 
 # Export a database to PDB
-palm --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
+op-cli --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
 
 # Read a record
-palm --port /dev/ttyUSB0 record read --db MemoDB --index 0
+op-cli --port /dev/ttyUSB0 record read --db MemoDB --index 0
 
 # Network HotSync server
-palm server --bind 0.0.0.0 --port 14238
+op-cli server --bind 0.0.0.0 --port 14238
 ```
 
 ### Available Commands

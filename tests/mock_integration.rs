@@ -5,9 +5,14 @@
 
 use openpalm::{
     PilotSocket,
-    protocol::dlp::{DlpFunction, DlpErrorCode},
+    protocol::dlp::{DlpFunction, DlpErrorCode, DlpOpenMode, DlpDBListFlag},
     protocol::TransportConnection,
+    types::{FourCharCode, RecordFlags, DatabaseFlags},
 };
+
+// ========================================================================
+// System Info Tests
+// ========================================================================
 
 /// Build a raw DLP response packet for `ReadSysInfo`.
 ///
@@ -235,6 +240,352 @@ async fn test_mock_read_user_info() {
     assert_eq!(user.username, "TestUser");
     assert_eq!(user.last_sync_pc, 0);
 }
+
+// ========================================================================
+// Database Function Tests
+// ========================================================================
+
+/// Build a raw DLP response for `OpenDB`.
+fn build_open_db_response(handle: u8) -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::OpenDB as u8,  // 0x17
+        1,                          // argc
+        DlpErrorCode::NoError as u8, // 0x00
+        0,                          // flags
+    ];
+    // Arg 0: handle (u32, LE)
+    data.push(0x04);
+    data.extend_from_slice(&(handle as u32).to_le_bytes());
+    data
+}
+
+#[tokio::test]
+async fn test_mock_open_db() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_open_db_response(5));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let handle = dlp.open_db(0, "TestDB", DlpOpenMode::ReadWrite).await.unwrap();
+
+    assert_eq!(handle, 5);
+}
+
+#[tokio::test]
+async fn test_mock_open_db_error() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_error_response(
+            DlpFunction::OpenDB,
+            DlpErrorCode::NotFound,
+        ));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let err = dlp.open_db(0, "NonExistent", DlpOpenMode::ReadWrite).await.unwrap_err();
+
+    match err {
+        openpalm::PilotError::DlpError(code) => assert_eq!(code, DlpErrorCode::NotFound as u16),
+        other => panic!("expected DlpError, got {:?}", other),
+    }
+}
+
+/// Build a raw DLP response for `CloseDB`.
+fn build_close_db_response() -> Vec<u8> {
+    vec![
+        DlpFunction::CloseDB as u8,
+        0,                              // argc
+        DlpErrorCode::NoError as u8,
+        0,                              // flags
+    ]
+}
+
+#[tokio::test]
+async fn test_mock_close_db() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_close_db_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    dlp.close_db(5).await.unwrap();
+    // If we got here without error, the test passed
+}
+
+/// Build a raw DLP response for `ReadDBList`.
+fn build_read_db_list_response() -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::ReadDBList as u8, // 0x16
+        28,                             // argc (2 databases * 14 args each)
+        DlpErrorCode::NoError as u8,
+        0,
+    ];
+
+    // Helper to add a tiny-format argument (length byte + data)
+    let add_tiny = |data: &mut Vec<u8>, val: &[u8]| {
+        data.push(val.len() as u8); // length byte (must have MSB clear for tiny format)
+        data.extend_from_slice(val);
+    };
+
+    // Database 1: "AddrDB" (8 bytes with null)
+    add_tiny(&mut data, b"AddrDB\0");                    // arg 0: name
+    add_tiny(&mut data, &0x0001u16.to_le_bytes());       // arg 1: flags
+    add_tiny(&mut data, &0x44415442u32.to_le_bytes());  // arg 2: db_type "DATB"
+    add_tiny(&mut data, &0x50414C4Du32.to_le_bytes());  // arg 3: creator "PALM"
+    add_tiny(&mut data, &[0]);                           // arg 4: card_no
+    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 5: db_id
+    add_tiny(&mut data, &0x30000000u32.to_le_bytes());  // arg 6: created
+    add_tiny(&mut data, &0x30100000u32.to_le_bytes());  // arg 7: modified
+    add_tiny(&mut data, &0u32.to_le_bytes());            // arg 8: backup_date
+    add_tiny(&mut data, &100u32.to_le_bytes());         // arg 9: mod_num
+    add_tiny(&mut data, &0x00004000u32.to_le_bytes());  // arg 10: total_bytes
+    add_tiny(&mut data, &0x00003000u32.to_le_bytes());  // arg 11: data_bytes
+    add_tiny(&mut data, &25u16.to_le_bytes());           // arg 12: num_records
+    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 13: unique_id_seed
+
+    // Database 2: "DateBkDB" (8 bytes with null)
+    add_tiny(&mut data, b"DateBkDB\0");                  // arg 14: name
+    add_tiny(&mut data, &0x0001u16.to_le_bytes());       // arg 15: flags
+    add_tiny(&mut data, &0x44415442u32.to_le_bytes());  // arg 16: db_type
+    add_tiny(&mut data, &0x50414C4Du32.to_le_bytes());  // arg 17: creator
+    add_tiny(&mut data, &[0]);                           // arg 18: card_no
+    add_tiny(&mut data, &2u32.to_le_bytes());            // arg 19: db_id
+    add_tiny(&mut data, &0x30010000u32.to_le_bytes());  // arg 20: created
+    add_tiny(&mut data, &0x30120000u32.to_le_bytes());  // arg 21: modified
+    add_tiny(&mut data, &0u32.to_le_bytes());            // arg 22: backup_date
+    add_tiny(&mut data, &200u32.to_le_bytes());         // arg 23: mod_num
+    add_tiny(&mut data, &0x00008000u32.to_le_bytes());  // arg 24: total_bytes
+    add_tiny(&mut data, &0x00006000u32.to_le_bytes());  // arg 25: data_bytes
+    add_tiny(&mut data, &50u16.to_le_bytes());           // arg 26: num_records
+    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 27: unique_id_seed
+
+    data
+}
+
+#[tokio::test]
+async fn test_mock_read_db_list() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_read_db_list_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let databases = dlp.read_db_list(0, DlpDBListFlag::Ram, 0).await.unwrap();
+
+    assert_eq!(databases.len(), 2);
+
+    assert_eq!(databases[0].name, "AddrDB");
+    assert_eq!(databases[0].creator.to_u32(), 0x50414C4D);
+    assert_eq!(databases[0].card_no, 0);
+    assert_eq!(databases[0].num_records, 25);
+
+    assert_eq!(databases[1].name, "DateBkDB");
+    assert_eq!(databases[1].creator.to_u32(), 0x50414C4D);
+    assert_eq!(databases[1].card_no, 0);
+    assert_eq!(databases[1].num_records, 50);
+}
+
+/// Build a raw DLP response for `CreateDB`.
+fn build_create_db_response(handle: u8) -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::CreateDB as u8, // 0x18
+        1,                           // argc
+        DlpErrorCode::NoError as u8,
+        0,
+    ];
+    data.push(0x04);
+    data.extend_from_slice(&(handle as u32).to_le_bytes());
+    data
+}
+
+#[tokio::test]
+async fn test_mock_create_db() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_create_db_response(7));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let creator = FourCharCode::from_u32(0x50414C4D);
+    let db_type = FourCharCode::from_u32(0x44415442);
+    let handle = dlp.create_db(creator, db_type, 0, DatabaseFlags::empty(), 1, "NewDB")
+        .await
+        .unwrap();
+
+    assert_eq!(handle, 7);
+}
+
+/// Build a raw DLP response for `DeleteDB`.
+fn build_delete_db_response() -> Vec<u8> {
+    vec![
+        DlpFunction::DeleteDB as u8,
+        0,
+        DlpErrorCode::NoError as u8,
+        0,
+    ]
+}
+
+#[tokio::test]
+async fn test_mock_delete_db() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_delete_db_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    dlp.delete_db(0, "OldDB").await.unwrap();
+}
+
+#[tokio::test]
+async fn test_mock_delete_db_error() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_error_response(
+            DlpFunction::DeleteDB,
+            DlpErrorCode::ReadOnly,
+        ));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let err = dlp.delete_db(0, "ReadOnlyDB").await.unwrap_err();
+
+    match err {
+        openpalm::PilotError::DlpError(code) => assert_eq!(code, DlpErrorCode::ReadOnly as u16),
+        other => panic!("expected DlpError, got {:?}", other),
+    }
+}
+
+// ========================================================================
+// Record Function Tests
+// ========================================================================
+
+/// Build a raw DLP response for `ReadRecord`.
+fn build_read_record_response(id: u32, index: u32, data: &[u8], attrs: u8) -> Vec<u8> {
+    let mut response = vec![
+        DlpFunction::ReadRecord as u8, // 0x20
+        4,                             // argc
+        DlpErrorCode::NoError as u8,
+        0,
+    ];
+
+    // Arg 0: record data
+    response.push(data.len() as u8);
+    response.extend_from_slice(data);
+
+    // Arg 1: record id (u32)
+    response.push(0x04);
+    response.extend_from_slice(&id.to_le_bytes());
+
+    // Arg 2: attributes (u8)
+    response.push(0x01);
+    response.push(attrs);
+
+    // Arg 3: index (u32)
+    response.push(0x04);
+    response.extend_from_slice(&index.to_le_bytes());
+
+    response
+}
+
+#[tokio::test]
+async fn test_mock_read_record() {
+    let mut socket = PilotSocket::mock();
+
+    let record_data = b"Hello, Palm!";
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_read_record_response(0x10000001, 5, record_data, 0x00));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let record = dlp.read_record(1, 5).await.unwrap();
+
+    assert_eq!(record.id, 0x10000001);
+    assert_eq!(record.index, 5);
+    assert_eq!(record.data, record_data);
+}
+
+/// Build a raw DLP response for `WriteRecord`.
+fn build_write_record_response(id: u32) -> Vec<u8> {
+    let mut data = vec![
+        DlpFunction::WriteRecord as u8, // 0x21
+        1,                               // argc
+        DlpErrorCode::NoError as u8,
+        0,
+    ];
+    data.push(0x04);
+    data.extend_from_slice(&id.to_le_bytes());
+    data
+}
+
+#[tokio::test]
+async fn test_mock_write_record() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_write_record_response(0x10000005));
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    let id = dlp.write_record(1, RecordFlags::empty(), 0, 0, b"New record data")
+        .await
+        .unwrap();
+
+    assert_eq!(id, 0x10000005);
+}
+
+/// Build a raw DLP response for `DeleteRecord`.
+fn build_delete_record_response() -> Vec<u8> {
+    vec![
+        DlpFunction::DeleteRecord as u8,
+        0,
+        DlpErrorCode::NoError as u8,
+        0,
+    ]
+}
+
+#[tokio::test]
+async fn test_mock_delete_record() {
+    let mut socket = PilotSocket::mock();
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(build_delete_record_response());
+    }
+
+    socket.connect().unwrap();
+
+    let dlp = socket.dlp().unwrap();
+    dlp.delete_record(1, 5, 0x10000001).await.unwrap();
+}
+
+// ========================================================================
+// Request Verification Test
+// ========================================================================
 
 /// Verify that the request is written correctly to the mock transport.
 #[tokio::test]
