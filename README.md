@@ -8,7 +8,7 @@ A modern Rust port of the pilot-link project, providing a complete implementatio
 
 - **Full DLP 1.4 Protocol** - 81 Desktop Link Protocol functions with full typed wrapper coverage
 - **Multiple Transports** - Serial, USB, TCP/IP, and Bluetooth support
-- **CLI Tool** - Full command-line interface (`palm`) for device operations
+- **CLI Tool** - Full command-line interface (`op`) for device operations
 - **16 Record Types** - Address, Calendar, Todo, Memo, Expense, Mail, and more
 - **VFS Support** - Virtual File System for expansion cards
 - **Async/Await** - First-class async support with Tokio
@@ -126,31 +126,31 @@ fn test_with_mock() {
 
 ## CLI Tool
 
-OpenPalm includes a `palm` CLI binary for quick device operations:
+OpenPalm includes a `op` CLI binary for quick device operations:
 
 ### Build
 
 ```bash
-cargo build --release --bin palm
+cargo build --release --bin op
 ```
 
 ### Usage
 
 ```bash
 # Device info over serial
-op-cli --port /dev/ttyUSB0 info
+op --port /dev/ttyUSB0 info
 
 # List databases over network
-op-cli --host 192.168.1.100 db list
+op --host 192.168.1.100 db list
 
 # Export a database to PDB
-op-cli --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
+op --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
 
 # Read a record
-op-cli --port /dev/ttyUSB0 record read --db MemoDB --index 0
+op --port /dev/ttyUSB0 record read --db MemoDB --index 0
 
 # Network HotSync server
-op-cli server --bind 0.0.0.0 --port 14238
+op server --bind 0.0.0.0 --port 14238
 ```
 
 ### Available Commands
