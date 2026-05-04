@@ -75,7 +75,7 @@ insta = { version = "1", features = ["yaml"] }
 mockall = "0.12"
 
 [[bin]]
-name = "op-cli"
+name = "op"
 path = "src/main.rs"
 
 [profile.release]

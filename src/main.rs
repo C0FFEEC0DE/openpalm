@@ -3,7 +3,7 @@
 use clap::{Parser, Subcommand};
 
 #[derive(Parser)]
-#[command(name = "op-cli")]
+#[command(name = "op")]
 #[command(about = "CLI for Palm OS device communication")]
 #[command(version = env!("CARGO_PKG_VERSION"))]
 struct Cli {
