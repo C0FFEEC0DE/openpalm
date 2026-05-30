@@ -21,7 +21,7 @@ op --port /dev/ttyUSB0 db export --name DatebookDB --output datebook.pdb
 ## Library Example
 
 ```rust
-use openpalm::PilotSocket;
+use openpalm::{encode_palm_string, PilotSocket};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -38,6 +38,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     Ok(())
 }
+```
+
+## String Encoding
+
+Palm OS stores text in **CP1252** (Windows Western), not UTF-8. The library provides round-trip utilities:
+
+```rust
+use openpalm::{decode_palm_string, encode_palm_string};
+
+// Decode Palm OS bytes → Rust String
+let text = decode_palm_string(b"\x80\x91Hello\x92"); // € and smart quotes
+
+// Encode Rust String → Palm OS bytes (unmappable chars become '?')
+let bytes = encode_palm_string("Hello € α"); // α → '?'
 ```
 
 ## System Dependencies

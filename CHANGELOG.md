@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/protocol/dlp.rs` — Public escape hatch: `DlpClient::execute()` + pub `DlpArg`/`DlpRequest`/`DlpResponse`
 - `src/protocol/dlp.rs` — `SetDbInfoParams` struct replacing 9 positional parameters in `set_db_info`
 - `docs/DLP_SPEC.md` — Desktop Link Protocol specification from actual implementation values
+- `src/utils/strings.rs` — New `encode_palm_string()` utility (UTF-8 → CP1252) for round-trip string encoding
+- `src/error.rs` — New `PilotError::SyncPoisoned` variant for mutex poisoning
+- `src/transport/mod.rs` — `MockConnection::set_wouldblock_on_empty()` helper for testing async timeouts
+- `src/protocol/dlp.rs` — Unit test: 20 000-byte long-format DLP arg round-trip (`test_long_format_roundtrip_20000_bytes`)
+- `src/protocol/dlp.rs` — Unit test: body-read timeout with WouldBlock (`test_send_request_body_timeout`)
+- `src/protocol/dlp.rs` — Unit test: `read_db_list` rejects partial/malformed responses
 
 ### Fixed
 - **Critical:** `PilotSocket::serial()` — Now actually creates and stores the transport connection
@@ -47,6 +53,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/protocol/dlp.rs` — Fixed `encoded_size()` short format id < 0x40 guard mismatch with encode()
 - `src/protocol/dlp.rs` — Fixed 7 wrapper methods returning partial hardcoded Record/DatabaseInfo metadata
 - `src/protocol/dlp.rs` — Added boundary tests at DLP_ARG_TINY_LEN/SHORT_LEN transitions (63/64, 16383/16384)
+- `src/protocol/dlp.rs` — `send_request` body-read loop now uses `Instant` deadline (5 s wall-clock) instead of arbitrary retry counter
+- `src/protocol/dlp.rs` — `read_db_list` now validates exact 14-arg layout per DB entry and returns `InvalidData` error on truncation/mismatch
+- `src/protocol/dlp.rs` — `DlpArg::encode()` long-format comment corrected (`0b01TTTTTT` → `0b11TTTTTT`)
+- `src/protocol/net.rs` — Fixed `NetHandler::create_connection` panic-prone `unwrap()` (`expect("just pushed")` with safety comment)
+- `src/transport/mod.rs` — `AsyncConnectionAdapter` now propagates `PilotError::SyncPoisoned` instead of panicking on poisoned `Mutex`
+- `src/protocol/dlp.rs` — `DlpClient::with_transport_mut` and `send_request` now propagate `SyncPoisoned` instead of panicking on poisoned `Mutex`
+- `src/records/*.rs` — All `pack()` / `pack_string()` methods now use `encode_palm_string()` (UTF-8 → CP1252) to prevent corruption of non-ASCII characters on Palm OS
+- `.github/workflows/ci.yml` — Upgraded `actions/checkout@v4` → `v5` and `actions/cache@v4` → `v5` (Node.js 20 deprecation warnings)
 - `src/transport/net.rs` — Fixed `NetConnection::read`/`write` violating `Read`/`Write` contract (was looping until full buffer, now returns after single partial transfer as standard requires)
 - `src/transport/net.rs` — Fixed `NetConnection::write` partial progress loss on `Ok(0)`
 

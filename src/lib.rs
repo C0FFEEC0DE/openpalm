@@ -89,6 +89,8 @@ pub use utils::{
     pad_to_align,
     parse_lpstring,
     // String utilities
+    decode_palm_string,
+    encode_palm_string,
     parse_pstring,
     parse_string_list,
     pilot_rate_env,
