@@ -4,10 +4,10 @@
 //! with realistic request/response parsing.
 
 use openpalm::{
-    PilotSocket,
-    protocol::dlp::{DlpFunction, DlpErrorCode, DlpOpenMode, DlpDBListFlag},
+    protocol::dlp::{DlpDBListFlag, DlpErrorCode, DlpFunction, DlpOpenMode},
     protocol::TransportConnection,
-    types::{FourCharCode, RecordFlags, DatabaseFlags},
+    types::{DatabaseFlags, FourCharCode, RecordFlags},
+    PilotSocket,
 };
 
 // ========================================================================
@@ -86,10 +86,7 @@ async fn test_error_response_trailing_data_consumed() {
     let mut socket = PilotSocket::mock();
 
     // Two error responses back-to-back; first has trailing argv bytes that must be consumed
-    let mut data = build_error_response(
-        DlpFunction::ReadSysInfo,
-        DlpErrorCode::NotFound,
-    );
+    let mut data = build_error_response(DlpFunction::ReadSysInfo, DlpErrorCode::NotFound);
     data.extend_from_slice(&[0x01, 0x02, 0x03]); // trailing argv bytes
     data.extend_from_slice(&build_error_response(
         DlpFunction::ReadSysInfo,
@@ -150,9 +147,9 @@ async fn test_mock_read_sys_info_error() {
 fn build_get_sys_datetime_response() -> Vec<u8> {
     let mut data = vec![
         DlpFunction::GetSysDateTime as u8, // 0x20
-        1,                                  // argc
-        DlpErrorCode::NoError as u8,        // 0x00
-        0,                                  // flags
+        1,                                 // argc
+        DlpErrorCode::NoError as u8,       // 0x00
+        0,                                 // flags
     ];
 
     // Arg 0: palm datetime = 0x30295296 (u32, LE)
@@ -183,9 +180,9 @@ async fn test_mock_get_sys_datetime() {
 fn build_read_storage_info_response() -> Vec<u8> {
     let mut data = vec![
         DlpFunction::ReadStorageInfo as u8, // 0x15
-        6,                                     // argc
-        DlpErrorCode::NoError as u8,          // 0x00
-        0,                                    // flags
+        6,                                  // argc
+        DlpErrorCode::NoError as u8,        // 0x00
+        0,                                  // flags
     ];
 
     // Arg 0: version = 1 (i32, LE)
@@ -240,9 +237,9 @@ async fn test_mock_read_storage_info() {
 fn build_read_user_info_response() -> Vec<u8> {
     let mut data = vec![
         DlpFunction::ReadUserInfo as u8, // 0x10
-        4,                                  // argc
+        4,                               // argc
         DlpErrorCode::NoError as u8,     // 0x00
-        0,                                 // flags
+        0,                               // flags
     ];
 
     // Arg 0: user_id = 0x12345678 (u32, LE)
@@ -290,10 +287,10 @@ async fn test_mock_read_user_info() {
 /// Build a raw DLP response for `OpenDB`.
 fn build_open_db_response(handle: u8) -> Vec<u8> {
     let mut data = vec![
-        DlpFunction::OpenDB as u8,  // 0x17
-        1,                          // argc
+        DlpFunction::OpenDB as u8,   // 0x17
+        1,                           // argc
         DlpErrorCode::NoError as u8, // 0x00
-        0,                          // flags
+        0,                           // flags
     ];
     // Arg 0: handle (u32, LE)
     data.push(0x04);
@@ -312,7 +309,10 @@ async fn test_mock_open_db() {
     socket.connect().unwrap();
 
     let dlp = socket.dlp().unwrap();
-    let handle = dlp.open_db(0, "TestDB", DlpOpenMode::ReadWrite).await.unwrap();
+    let handle = dlp
+        .open_db(0, "TestDB", DlpOpenMode::ReadWrite)
+        .await
+        .unwrap();
 
     assert_eq!(handle, 5);
 }
@@ -331,7 +331,10 @@ async fn test_mock_open_db_error() {
     socket.connect().unwrap();
 
     let dlp = socket.dlp().unwrap();
-    let err = dlp.open_db(0, "NonExistent", DlpOpenMode::ReadWrite).await.unwrap_err();
+    let err = dlp
+        .open_db(0, "NonExistent", DlpOpenMode::ReadWrite)
+        .await
+        .unwrap_err();
 
     match err {
         openpalm::PilotError::DlpError(code) => assert_eq!(code, DlpErrorCode::NotFound as u16),
@@ -343,9 +346,9 @@ async fn test_mock_open_db_error() {
 fn build_close_db_response() -> Vec<u8> {
     vec![
         DlpFunction::CloseDB as u8,
-        0,                              // argc
+        0, // argc
         DlpErrorCode::NoError as u8,
-        0,                              // flags
+        0, // flags
     ]
 }
 
@@ -368,7 +371,7 @@ async fn test_mock_close_db() {
 fn build_read_db_list_response() -> Vec<u8> {
     let mut data = vec![
         DlpFunction::ReadDBList as u8, // 0x16
-        28,                             // argc (2 databases * 14 args each)
+        28,                            // argc (2 databases * 14 args each)
         DlpErrorCode::NoError as u8,
         0,
     ];
@@ -380,36 +383,36 @@ fn build_read_db_list_response() -> Vec<u8> {
     };
 
     // Database 1: "AddrDB" (8 bytes with null)
-    add_tiny(&mut data, b"AddrDB\0");                    // arg 0: name
-    add_tiny(&mut data, &0x0001u16.to_be_bytes());       // arg 1: flags
-    add_tiny(&mut data, &0x44415442u32.to_be_bytes());  // arg 2: db_type "DATB"
-    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes());  // arg 3: creator "PALM"
-    add_tiny(&mut data, &[0]);                           // arg 4: card_no
-    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 5: db_id
-    add_tiny(&mut data, &0x30000000u32.to_be_bytes());  // arg 6: created
-    add_tiny(&mut data, &0x30100000u32.to_be_bytes());  // arg 7: modified
-    add_tiny(&mut data, &0u32.to_be_bytes());            // arg 8: backup_date
-    add_tiny(&mut data, &100u32.to_be_bytes());         // arg 9: mod_num
-    add_tiny(&mut data, &0x00004000u32.to_be_bytes());  // arg 10: total_bytes
-    add_tiny(&mut data, &0x00003000u32.to_be_bytes());  // arg 11: data_bytes
-    add_tiny(&mut data, &25u16.to_be_bytes());           // arg 12: num_records
-    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 13: unique_id_seed
+    add_tiny(&mut data, b"AddrDB\0"); // arg 0: name
+    add_tiny(&mut data, &0x0001u16.to_be_bytes()); // arg 1: flags
+    add_tiny(&mut data, &0x44415442u32.to_be_bytes()); // arg 2: db_type "DATB"
+    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes()); // arg 3: creator "PALM"
+    add_tiny(&mut data, &[0]); // arg 4: card_no
+    add_tiny(&mut data, &1u32.to_be_bytes()); // arg 5: db_id
+    add_tiny(&mut data, &0x30000000u32.to_be_bytes()); // arg 6: created
+    add_tiny(&mut data, &0x30100000u32.to_be_bytes()); // arg 7: modified
+    add_tiny(&mut data, &0u32.to_be_bytes()); // arg 8: backup_date
+    add_tiny(&mut data, &100u32.to_be_bytes()); // arg 9: mod_num
+    add_tiny(&mut data, &0x00004000u32.to_be_bytes()); // arg 10: total_bytes
+    add_tiny(&mut data, &0x00003000u32.to_be_bytes()); // arg 11: data_bytes
+    add_tiny(&mut data, &25u16.to_be_bytes()); // arg 12: num_records
+    add_tiny(&mut data, &1u32.to_be_bytes()); // arg 13: unique_id_seed
 
     // Database 2: "DateBkDB" (8 bytes with null)
-    add_tiny(&mut data, b"DateBkDB\0");                  // arg 14: name
-    add_tiny(&mut data, &0x0001u16.to_be_bytes());       // arg 15: flags
-    add_tiny(&mut data, &0x44415442u32.to_be_bytes());  // arg 16: db_type
-    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes());  // arg 17: creator
-    add_tiny(&mut data, &[0]);                           // arg 18: card_no
-    add_tiny(&mut data, &2u32.to_be_bytes());            // arg 19: db_id
-    add_tiny(&mut data, &0x30010000u32.to_be_bytes());  // arg 20: created
-    add_tiny(&mut data, &0x30120000u32.to_be_bytes());  // arg 21: modified
-    add_tiny(&mut data, &0u32.to_be_bytes());            // arg 22: backup_date
-    add_tiny(&mut data, &200u32.to_be_bytes());         // arg 23: mod_num
-    add_tiny(&mut data, &0x00008000u32.to_be_bytes());  // arg 24: total_bytes
-    add_tiny(&mut data, &0x00006000u32.to_be_bytes());  // arg 25: data_bytes
-    add_tiny(&mut data, &50u16.to_be_bytes());           // arg 26: num_records
-    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 27: unique_id_seed
+    add_tiny(&mut data, b"DateBkDB\0"); // arg 14: name
+    add_tiny(&mut data, &0x0001u16.to_be_bytes()); // arg 15: flags
+    add_tiny(&mut data, &0x44415442u32.to_be_bytes()); // arg 16: db_type
+    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes()); // arg 17: creator
+    add_tiny(&mut data, &[0]); // arg 18: card_no
+    add_tiny(&mut data, &2u32.to_be_bytes()); // arg 19: db_id
+    add_tiny(&mut data, &0x30010000u32.to_be_bytes()); // arg 20: created
+    add_tiny(&mut data, &0x30120000u32.to_be_bytes()); // arg 21: modified
+    add_tiny(&mut data, &0u32.to_be_bytes()); // arg 22: backup_date
+    add_tiny(&mut data, &200u32.to_be_bytes()); // arg 23: mod_num
+    add_tiny(&mut data, &0x00008000u32.to_be_bytes()); // arg 24: total_bytes
+    add_tiny(&mut data, &0x00006000u32.to_be_bytes()); // arg 25: data_bytes
+    add_tiny(&mut data, &50u16.to_be_bytes()); // arg 26: num_records
+    add_tiny(&mut data, &1u32.to_be_bytes()); // arg 27: unique_id_seed
 
     data
 }
@@ -466,7 +469,8 @@ async fn test_mock_create_db() {
     let dlp = socket.dlp().unwrap();
     let creator = FourCharCode::from_u32(0x50414C4D);
     let db_type = FourCharCode::from_u32(0x44415442);
-    let handle = dlp.create_db(creator, db_type, 0, DatabaseFlags::empty(), 1, "NewDB")
+    let handle = dlp
+        .create_db(creator, db_type, 0, DatabaseFlags::empty(), 1, "NewDB")
         .await
         .unwrap();
 
@@ -574,7 +578,7 @@ async fn test_mock_read_record() {
 fn build_write_record_response(id: u32) -> Vec<u8> {
     let mut data = vec![
         DlpFunction::WriteRecord as u8, // 0x21
-        1,                               // argc
+        1,                              // argc
         DlpErrorCode::NoError as u8,
         0,
     ];
@@ -594,7 +598,8 @@ async fn test_mock_write_record() {
     socket.connect().unwrap();
 
     let dlp = socket.dlp().unwrap();
-    let id = dlp.write_record(1, RecordFlags::empty(), 0, 0, b"New record data")
+    let id = dlp
+        .write_record(1, RecordFlags::empty(), 0, 0, b"New record data")
         .await
         .unwrap();
 

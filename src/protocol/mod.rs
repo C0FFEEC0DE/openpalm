@@ -3,19 +3,19 @@
 //! This module implements the protocol stack used for communication
 //! with Palm OS devices.
 
-mod socket;
 pub mod dlp;
-pub mod slp;
-pub mod padp;
 pub mod net;
+pub mod padp;
+pub mod slp;
+mod socket;
 pub mod syspkt;
 
-pub use socket::{PilotSocket, TransportConnection};
 pub use dlp::{DlpArg, DlpClient, DlpRequest, DlpResponse, ProtocolVersion};
+pub use net::{NetCommand, NetConnection, NetError, NetHandler, NetPacket, NetState};
+pub use padp::{PadpConnection, PadpFlags, PadpPacket, PadpState, PadpType};
 pub use slp::{SlpConnection, SlpPacket, SlpPacketType, SlpState};
-pub use padp::{PadpConnection, PadpPacket, PadpType, PadpFlags, PadpState};
-pub use net::{NetHandler, NetPacket, NetConnection, NetCommand, NetState, NetError};
-pub use syspkt::{SysPkt, SysPktType, SysPktCmd, SysInfo, UserInfo, SysPktHandler};
+pub use socket::{PilotSocket, TransportConnection};
+pub use syspkt::{SysInfo, SysPkt, SysPktCmd, SysPktHandler, SysPktType, UserInfo};
 
 /// Protocol levels in the stack
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -104,17 +104,17 @@ impl SysPkt {
     /// Pack to bytes
     pub fn pack(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        
+
         // Header: type (1) + cmd (1) + seq (1) + flags (1) + length (2)
         bytes.push(self.pkt_type as u8);
         bytes.push(self.cmd as u8);
         bytes.push(self.seq);
         bytes.push(self.flags);
         bytes.extend_from_slice(&(self.payload.len() as u16).to_be_bytes());
-        
+
         // Payload
         bytes.extend_from_slice(&self.payload);
-        
+
         bytes
     }
 
@@ -126,10 +126,10 @@ impl SysPkt {
 
         let pkt_type = SysPktType::from_u8(data[0])
             .ok_or_else(|| PilotError::InvalidData("Invalid SysPkt type".into()))?;
-        
+
         let cmd = SysPktCmd::from_u8(data[1])
             .ok_or_else(|| PilotError::InvalidData("Invalid SysPkt cmd".into()))?;
-        
+
         let seq = data[2];
         let flags = data[3];
         let length = u16::from_be_bytes([data[4], data[5]]) as usize;
@@ -203,14 +203,27 @@ impl SysInfo {
             locale: [payload[3], payload[4], payload[5], payload[6]],
             device_id: u32::from_be_bytes([payload[7], payload[8], payload[9], payload[10]]),
             product_id: u32::from_be_bytes([payload[11], payload[12], payload[13], payload[14]]),
-            serial: [payload[15], payload[16], payload[17], payload[18], payload[19], payload[20], payload[21], payload[22], payload[23], payload[24], payload[25], payload[26]],
+            serial: [
+                payload[15],
+                payload[16],
+                payload[17],
+                payload[18],
+                payload[19],
+                payload[20],
+                payload[21],
+                payload[22],
+                payload[23],
+                payload[24],
+                payload[25],
+                payload[26],
+            ],
         })
     }
 
     /// Pack to payload
     pub fn pack(&self) -> Vec<u8> {
         let mut payload = Vec::new();
-        
+
         payload.push(self.rom_version_major);
         payload.push(self.rom_version_minor);
         payload.push(self.rom_version_dot);
@@ -218,7 +231,7 @@ impl SysInfo {
         payload.extend_from_slice(&self.device_id.to_be_bytes());
         payload.extend_from_slice(&self.product_id.to_be_bytes());
         payload.extend_from_slice(&self.serial);
-        
+
         payload
     }
 }
@@ -242,18 +255,32 @@ impl UserInfo {
         }
 
         let user_id = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
-        
+
         // Parse null-terminated string
         let mut name_end = 4;
         while name_end < payload.len() && payload[name_end] != 0 {
             name_end += 1;
         }
         let user_name = String::from_utf8_lossy(&payload[4..name_end]).to_string();
-        
-        let password_hash = [payload[name_end + 1], payload[name_end + 2], payload[name_end + 3], payload[name_end + 4],
-                           payload[name_end + 5], payload[name_end + 6], payload[name_end + 7], payload[name_end + 8],
-                           payload[name_end + 9], payload[name_end + 10], payload[name_end + 11], payload[name_end + 12],
-                           payload[name_end + 13], payload[name_end + 14], payload[name_end + 15], payload[name_end + 16]];
+
+        let password_hash = [
+            payload[name_end + 1],
+            payload[name_end + 2],
+            payload[name_end + 3],
+            payload[name_end + 4],
+            payload[name_end + 5],
+            payload[name_end + 6],
+            payload[name_end + 7],
+            payload[name_end + 8],
+            payload[name_end + 9],
+            payload[name_end + 10],
+            payload[name_end + 11],
+            payload[name_end + 12],
+            payload[name_end + 13],
+            payload[name_end + 14],
+            payload[name_end + 15],
+            payload[name_end + 16],
+        ];
 
         Ok(Self {
             user_id,
@@ -373,13 +400,13 @@ impl Default for SysPktHandler {
 pub mod constants {
     /// Maximum payload size
     pub const MAX_PAYLOAD: usize = 65535;
-    
+
     /// Default timeout (ms)
     pub const DEFAULT_TIMEOUT: u32 = 5000;
-    
+
     /// Default max retries
     pub const DEFAULT_MAX_RETRIES: u8 = 3;
-    
+
     /// Heartbeat interval (ms)
     pub const HEARTBEAT_INTERVAL: u32 = 30000;
 }
@@ -393,7 +420,7 @@ mod tests {
         let pkt = SysPkt::request(SysPktCmd::GetSysInfo, 42);
         let bytes = pkt.pack();
         let parsed = SysPkt::parse(&bytes).unwrap();
-        
+
         assert_eq!(parsed.pkt_type, SysPktType::Request);
         assert_eq!(parsed.cmd, SysPktCmd::GetSysInfo);
         assert_eq!(parsed.seq, 42);
@@ -424,10 +451,10 @@ mod tests {
             product_id: 0x87654321,
             serial: *b"ABC123456789",
         };
-        
+
         let payload = info.pack();
         let parsed = SysInfo::parse(&payload).unwrap();
-        
+
         assert_eq!(parsed.rom_version_major, 5);
         assert_eq!(parsed.device_id, 0x12345678);
     }
@@ -437,7 +464,7 @@ mod tests {
         let nak = SysPkt::nak(5);
         assert_eq!(nak.pkt_type, SysPktType::Nak);
         assert_eq!(nak.seq, 5);
-        
+
         let heartbeat = SysPkt::heartbeat(10);
         assert_eq!(heartbeat.pkt_type, SysPktType::Heartbeat);
         assert_eq!(heartbeat.seq, 10);

@@ -2,9 +2,9 @@
 //!
 //! This module provides location and GPS-related record parsing and serialization.
 
-use std::fmt;
 use crate::error::{PilotError, Result};
 use crate::types::PalmDateTime;
+use std::fmt;
 
 /// Location record
 #[derive(Debug, Clone)]
@@ -50,9 +50,15 @@ impl LocationAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// GPS coordinate
@@ -71,7 +77,12 @@ pub struct GpsCoordinate {
 impl GpsCoordinate {
     /// Create new coordinate
     pub fn new(degrees: i32, minutes: u32, seconds: u32, direction: GpsDirection) -> Self {
-        Self { degrees, minutes, seconds, direction }
+        Self {
+            degrees,
+            minutes,
+            seconds,
+            direction,
+        }
     }
 
     /// Convert to decimal degrees
@@ -79,7 +90,7 @@ impl GpsCoordinate {
         let mut dec = self.degrees as f64;
         dec += (self.minutes as f64) / 60.0;
         dec += (self.seconds as f64) / 3600.0;
-        
+
         match self.direction {
             GpsDirection::South | GpsDirection::West => -dec,
             _ => dec,
@@ -93,15 +104,27 @@ impl GpsCoordinate {
         let min_f = (abs - deg as f64) * 60.0;
         let min = min_f.trunc() as u32;
         let sec = ((min_f - min as f64) * 60.0 * 1000.0).round() as u32;
-        
-        let dir = if decimal < 0.0 { GpsDirection::South } else { GpsDirection::North };
-        
-        Self { degrees: deg, minutes: min, seconds: sec, direction: dir }
+
+        let dir = if decimal < 0.0 {
+            GpsDirection::South
+        } else {
+            GpsDirection::North
+        };
+
+        Self {
+            degrees: deg,
+            minutes: min,
+            seconds: sec,
+            direction: dir,
+        }
     }
 
     /// Format as string (DD°MM'SS"N)
     pub fn format(&self) -> String {
-        format!("{}°{}'{}''{}", self.degrees, self.minutes, self.seconds, self.direction)
+        format!(
+            "{}°{}'{}''{}",
+            self.degrees, self.minutes, self.seconds, self.direction
+        )
     }
 }
 
@@ -172,10 +195,9 @@ impl Position {
         let dlat = (other.lat.to_decimal() - self.lat.to_decimal()).to_radians();
         let dlon = (other.lon.to_decimal() - self.lon.to_decimal()).to_radians();
 
-        let a = (dlat / 2.0).sin().powi(2) 
-            + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
+        let a = (dlat / 2.0).sin().powi(2) + lat1.cos() * lat2.cos() * (dlon / 2.0).sin().powi(2);
         let c = 2.0 * a.sqrt().asin();
-        
+
         // Earth radius in meters
         6371000.0 * c
     }
@@ -238,26 +260,56 @@ impl LocationRecord {
         let mut offset = 0;
 
         // Parse latitude (7 bytes)
-        let lat_deg = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_deg = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let lat_min = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_min = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let lat_sec = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_sec = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
         let lat_dir = match data[offset] {
             b'S' => GpsDirection::South,
             _ => GpsDirection::North,
         };
         offset += 1;
-        
+
         record.latitude = GpsCoordinate::new(lat_deg, lat_min, lat_sec, lat_dir);
 
         // Parse longitude (7 bytes)
-        let lon_deg = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_deg = i32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let lon_min = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_min = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
-        let lon_sec = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_sec = u32::from_be_bytes([
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ]);
         offset += 4;
         let lon_dir = match data[offset] {
             b'W' => GpsDirection::West,
@@ -265,12 +317,17 @@ impl LocationRecord {
             _ => GpsDirection::West,
         };
         offset += 1;
-        
+
         record.longitude = GpsCoordinate::new(lon_deg, lon_min, lon_sec, lon_dir);
 
         // Parse altitude if present
         if offset + 4 <= data.len() {
-            let alt = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let alt = i32::from_be_bytes([
+                data[offset],
+                data[offset + 1],
+                data[offset + 2],
+                data[offset + 3],
+            ]);
             if alt != 0 {
                 record.altitude = Some(alt);
             }
@@ -363,10 +420,18 @@ impl LocationRecord {
     /// Get full address
     pub fn full_address(&self) -> String {
         let mut parts: Vec<&str> = Vec::new();
-        if !self.address.is_empty() { parts.push(&self.address); }
-        if !self.city.is_empty() { parts.push(&self.city); }
-        if !self.state.is_empty() { parts.push(&self.state); }
-        if !self.zip.is_empty() { parts.push(&self.zip); }
+        if !self.address.is_empty() {
+            parts.push(&self.address);
+        }
+        if !self.city.is_empty() {
+            parts.push(&self.city);
+        }
+        if !self.state.is_empty() {
+            parts.push(&self.state);
+        }
+        if !self.zip.is_empty() {
+            parts.push(&self.zip);
+        }
         parts.join(", ")
     }
 }
@@ -377,7 +442,7 @@ pub mod constants {
 
     /// Location database type
     pub const LOCATION_TYPE: FourCharCode = FourCharCode(0x4C6F6361); // "Loca"
-    
+
     /// Location database creator
     pub const LOCATION_CREATOR: FourCharCode = FourCharCode(0x4C6F6361); // "Loca"
 
@@ -402,7 +467,7 @@ mod tests {
         let coord = GpsCoordinate::new(40, 42, 46, GpsDirection::North);
         let decimal = coord.to_decimal();
         assert!((decimal - 40.7128).abs() < 0.01);
-        
+
         // Round trip
         let coord2 = GpsCoordinate::from_decimal(40.7128);
         assert!((coord2.degrees - 40).abs() < 1);
@@ -419,7 +484,7 @@ mod tests {
             heading: None,
             timestamp: PalmDateTime::now(),
         };
-        
+
         let pos2 = Position {
             lat: GpsCoordinate::new(40, 43, 0, GpsDirection::North),
             lon: GpsCoordinate::new(74, 0, 0, GpsDirection::West),
@@ -429,10 +494,14 @@ mod tests {
             heading: None,
             timestamp: PalmDateTime::now(),
         };
-        
+
         // About 270 meters apart - test distance calculation works
         let dist = pos1.distance_to(&pos2);
-        assert!(dist > 100.0 && dist < 1000.0, "Distance should be reasonable: {}", dist);
+        assert!(
+            dist > 100.0 && dist < 1000.0,
+            "Distance should be reasonable: {}",
+            dist
+        );
     }
 
     #[test]
@@ -446,7 +515,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = LocationRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.name, "Central Park");
         assert_eq!(parsed.city, "New York");
     }

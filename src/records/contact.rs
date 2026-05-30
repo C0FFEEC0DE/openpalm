@@ -68,9 +68,15 @@ impl ContactAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// Contact name
@@ -87,11 +93,21 @@ pub struct ContactName {
 impl ContactName {
     pub fn full_name(&self) -> String {
         let mut parts = Vec::new();
-        if !self.title.is_empty() { parts.push(self.title.as_str()); }
-        if !self.first.is_empty() { parts.push(self.first.as_str()); }
-        if !self.middle.is_empty() { parts.push(self.middle.as_str()); }
-        if !self.last.is_empty() { parts.push(self.last.as_str()); }
-        if !self.suffix.is_empty() { parts.push(self.suffix.as_str()); }
+        if !self.title.is_empty() {
+            parts.push(self.title.as_str());
+        }
+        if !self.first.is_empty() {
+            parts.push(self.first.as_str());
+        }
+        if !self.middle.is_empty() {
+            parts.push(self.middle.as_str());
+        }
+        if !self.last.is_empty() {
+            parts.push(self.last.as_str());
+        }
+        if !self.suffix.is_empty() {
+            parts.push(self.suffix.as_str());
+        }
         parts.join(" ")
     }
 
@@ -143,7 +159,7 @@ impl PhoneLabel {
             _ => PhoneLabel::Other,
         }
     }
-    
+
     pub fn as_u8(&self) -> u8 {
         *self as u8
     }
@@ -179,22 +195,34 @@ impl PostalAddress {
     /// Get formatted address
     pub fn format(&self) -> String {
         let mut parts: Vec<&str> = Vec::new();
-        if !self.street.is_empty() { parts.push(&self.street); }
-        
+        if !self.street.is_empty() {
+            parts.push(&self.street);
+        }
+
         let mut line2 = String::new();
         if !self.city.is_empty() {
             line2.push_str(&self.city);
-            if !self.state.is_empty() { line2.push(' '); }
+            if !self.state.is_empty() {
+                line2.push(' ');
+            }
         }
-        if !self.state.is_empty() { line2.push_str(&self.state); }
-        if !self.zip.is_empty() { 
-            if !line2.is_empty() { line2.push(' '); }
+        if !self.state.is_empty() {
+            line2.push_str(&self.state);
+        }
+        if !self.zip.is_empty() {
+            if !line2.is_empty() {
+                line2.push(' ');
+            }
             line2.push_str(&self.zip);
         }
-        if !line2.is_empty() { parts.push(&line2); }
-        
-        if !self.country.is_empty() { parts.push(&self.country); }
-        
+        if !line2.is_empty() {
+            parts.push(&line2);
+        }
+
+        if !self.country.is_empty() {
+            parts.push(&self.country);
+        }
+
         parts.join("\n")
     }
 }
@@ -292,14 +320,18 @@ impl ContactRecord {
 
         // Parse phones
         if offset >= data.len() {
-            return Err(PilotError::InvalidData("Contact record truncated at phone count".into()));
+            return Err(PilotError::InvalidData(
+                "Contact record truncated at phone count".into(),
+            ));
         }
         let phone_count = data[offset] as usize;
         offset += 1;
 
         for _ in 0..phone_count {
             if offset >= data.len() {
-                return Err(PilotError::InvalidData("Contact record truncated at phone label".into()));
+                return Err(PilotError::InvalidData(
+                    "Contact record truncated at phone label".into(),
+                ));
             }
             let label = PhoneLabel::from_u8(data[offset]);
             offset += 1;
@@ -314,7 +346,9 @@ impl ContactRecord {
 
         // Parse emails
         if offset >= data.len() {
-            return Err(PilotError::InvalidData("Contact record truncated at email count".into()));
+            return Err(PilotError::InvalidData(
+                "Contact record truncated at email count".into(),
+            ));
         }
         let email_count = data[offset] as usize;
         offset += 1;
@@ -327,15 +361,17 @@ impl ContactRecord {
 
         // Parse addresses
         if offset >= data.len() {
-            return Err(PilotError::InvalidData("Contact record truncated at address count".into()));
+            return Err(PilotError::InvalidData(
+                "Contact record truncated at address count".into(),
+            ));
         }
         let addr_count = data[offset] as usize;
         offset += 1;
-        
+
         for _ in 0..addr_count {
             let label = AddressLabel::from_u8(data[offset]);
             offset += 1;
-            
+
             let (street, new_offset) = Self::parse_string(data, offset)?;
             offset = new_offset;
             let (city, new_offset) = Self::parse_string(data, offset)?;
@@ -346,7 +382,7 @@ impl ContactRecord {
             offset = new_offset;
             let (country, new_offset) = Self::parse_string(data, offset)?;
             offset = new_offset;
-            
+
             record.addresses.push(PostalAddress {
                 label,
                 street,
@@ -428,16 +464,16 @@ pub mod constants {
 
     /// Contact database type
     pub const CONTACT_TYPE: FourCharCode = FourCharCode(0x41444452); // "ADDR"
-    
+
     /// Contact database creator
     pub const CONTACT_CREATOR: FourCharCode = FourCharCode(0x41444452); // "ADDR"
 
     /// Maximum phone numbers
     pub const MAX_PHONES: usize = 8;
-    
+
     /// Maximum email addresses
     pub const MAX_EMAILS: usize = 4;
-    
+
     /// Maximum addresses
     pub const MAX_ADDRESSES: usize = 3;
 }
@@ -453,7 +489,7 @@ mod tests {
             last: "Doe".to_string(),
             ..Default::default()
         };
-        
+
         assert_eq!(name.full_name(), "John Doe");
         assert_eq!(name.sort_name(), "Doe, John");
     }
@@ -474,7 +510,7 @@ mod tests {
             country: "USA".to_string(),
             ..Default::default()
         };
-        
+
         let formatted = addr.format();
         assert!(formatted.contains("123 Main St"));
         assert!(formatted.contains("Springfield"));

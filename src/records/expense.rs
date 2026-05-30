@@ -5,9 +5,7 @@
 use crate::error::{PilotError, Result};
 use crate::types::PalmDateTime;
 use crate::utils::{
-    parse_pstring, pack_pstring,
-    parse_string_list, pack_string_list,
-    string_list_size,
+    pack_pstring, pack_string_list, parse_pstring, parse_string_list, string_list_size,
 };
 
 /// Minimum size for expense record parsing
@@ -157,34 +155,44 @@ impl ExpenseRecord {
         let mut offset = 0;
 
         // Parse fixed fields
-        let expense_type = ExpenseType::from_u8(data[offset])
-            .unwrap_or(ExpenseType::Other);
+        let expense_type = ExpenseType::from_u8(data[offset]).unwrap_or(ExpenseType::Other);
         offset += 1;
 
         // Skip some bytes
         offset += 2;
 
         let amount = i32::from_be_bytes([
-            data[offset], data[offset + 1],
-            data[offset + 2], data[offset + 3],
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
         ]);
         offset += 4;
 
-        let currency = [data[offset], data[offset + 1], data[offset + 2], data[offset + 3]];
+        let currency = [
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ];
         offset += 4;
 
         // Date (Palm format)
         let date_val = u32::from_be_bytes([
-            data[offset], data[offset + 1],
-            data[offset + 2], data[offset + 3],
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
         ]);
         offset += 4;
         let date = PalmDateTime::from_palm(date_val);
 
         // Date paid
         let date_paid_val = u32::from_be_bytes([
-            data[offset], data[offset + 1],
-            data[offset + 2], data[offset + 3],
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
         ]);
         offset += 4;
         let date_paid = PalmDateTime::from_palm(date_paid_val);
@@ -221,7 +229,7 @@ impl ExpenseRecord {
         };
 
         Ok(Self {
-            id: 0, // Set by caller
+            id: 0,       // Set by caller
             category: 0, // Set by caller
             attributes: 0,
             expense_type,
@@ -273,10 +281,10 @@ impl ExpenseRecord {
         data.extend_from_slice(&pack_pstring(&self.vendor));
         data.extend_from_slice(&pack_pstring(&self.description));
         data.extend_from_slice(&pack_pstring(&self.city));
-        
+
         // Attendees list (double-null terminated)
         data.extend_from_slice(&pack_string_list(&self.attendees));
-        
+
         // Note
         data.extend_from_slice(&pack_pstring(&self.note));
 
@@ -290,13 +298,13 @@ pub mod constants {
 
     /// Expense database type
     pub const EXPENSE_TYPE: FourCharCode = FourCharCode(0x45787073);
-    
+
     /// Expense database creator
     pub const EXPENSE_CREATOR: FourCharCode = FourCharCode(0x4578706E);
-    
+
     /// Maximum expense amount
     pub const MAX_AMOUNT: i32 = 999_999_99;
-    
+
     /// Currency codes
     pub const CURRENCY_USD: [u8; 4] = [0x55, 0x53, 0x44, 0x00]; // "USD"
     pub const CURRENCY_EUR: [u8; 4] = [0x45, 0x55, 0x52, 0x00]; // "EUR"
@@ -343,7 +351,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = ExpenseRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.expense_type, ExpenseType::Meal);
         assert_eq!(parsed.amount, 2500);
         assert_eq!(parsed.vendor, "Restaurant");

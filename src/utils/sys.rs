@@ -39,11 +39,13 @@ pub fn timeout_expired(timeout: SystemTime) -> bool {
 pub fn system_time_to_timeout(timeout: SystemTime) -> i64 {
     let now = SystemTime::now();
     if timeout > now {
-        timeout.duration_since(now)
+        timeout
+            .duration_since(now)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0)
     } else {
-        -(now.duration_since(timeout)
+        -(now
+            .duration_since(timeout)
             .map(|d| d.as_millis() as i64)
             .unwrap_or(0))
     }
@@ -54,16 +56,20 @@ pub fn palm_strftime(format: &str, tm: &std::time::Duration) -> String {
     let secs = tm.as_secs();
     let days = secs / 86400;
     let remaining = secs % 86400;
-    
+
     let hours = remaining / 3600;
     let minutes = (remaining % 3600) / 60;
     let seconds = remaining % 60;
-    
+
     // Simple year calculation from Unix epoch
     let mut year = 1970i64;
     let mut remaining_days = days as i64;
     while remaining_days >= 365 {
-        let leap = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) { 366 } else { 365 };
+        let leap = if year % 4 == 0 && (year % 100 != 0 || year % 400 == 0) {
+            366
+        } else {
+            365
+        };
         if remaining_days >= leap {
             remaining_days -= leap;
             year += 1;
@@ -71,7 +77,7 @@ pub fn palm_strftime(format: &str, tm: &std::time::Duration) -> String {
             break;
         }
     }
-    
+
     // Day of year to month/day
     let is_leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
     let days_before_month = if is_leap {
@@ -79,16 +85,17 @@ pub fn palm_strftime(format: &str, tm: &std::time::Duration) -> String {
     } else {
         [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334]
     };
-    
-    let month = days_before_month.iter()
+
+    let month = days_before_month
+        .iter()
         .enumerate()
         .filter(|(_, &d)| d <= remaining_days)
         .next_back()
         .map(|(i, _)| i + 1)
         .unwrap_or(1);
-    
+
     let day = remaining_days - days_before_month[month - 1] + 1;
-    
+
     format
         .replace("%Y", &format!("{}", year))
         .replace("%y", &format!("{:02}", year % 100))

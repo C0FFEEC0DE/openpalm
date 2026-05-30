@@ -46,10 +46,18 @@ impl CmpAttributes {
     pub const ARCHIVE: u8 = 0x10;
     pub const ENCRYPTED: u8 = 0x40;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
-    pub fn is_encrypted(&self) -> bool { (self.0 & Self::ENCRYPTED) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
+    pub fn is_encrypted(&self) -> bool {
+        (self.0 & Self::ENCRYPTED) != 0
+    }
 }
 
 /// CMP message types
@@ -342,16 +350,16 @@ impl CmpRecord {
 pub mod constants {
     /// Current protocol version
     pub const CMP_VERSION: u8 = 1;
-    
+
     /// Maximum message size
     pub const MAX_MESSAGE_SIZE: usize = 65535;
-    
+
     /// Default timeout (ms)
     pub const DEFAULT_TIMEOUT: u32 = 30000;
-    
+
     /// Keep-alive interval (ms)
     pub const KEEPALIVE_INTERVAL: u32 = 60000;
-    
+
     /// Maximum retries
     pub const MAX_RETRIES: u8 = 3;
 }
@@ -398,10 +406,10 @@ mod tests {
             flags: 0,
             length: 100,
         };
-        
+
         let bytes = header.pack();
         let parsed = CmpHeader::parse(&bytes).unwrap();
-        
+
         assert_eq!(parsed.version, 1);
         assert_eq!(parsed.message_type, CmpMessageType::Text);
         assert_eq!(parsed.sequence, 1234);
@@ -419,7 +427,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = CmpRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.sender_id, "alice");
         assert_eq!(parsed.recipient_id, "bob");
         assert_eq!(parsed.subject, "Test message");
@@ -430,7 +438,7 @@ mod tests {
     fn test_is_encrypted() {
         let mut record = CmpRecord::default();
         assert!(!record.is_encrypted());
-        
+
         record.attributes = CmpAttributes(CmpAttributes::ENCRYPTED);
         assert!(record.is_encrypted());
     }

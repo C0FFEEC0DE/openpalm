@@ -3,15 +3,15 @@
 //! This module provides the pi_socket_t abstraction from pilot-link.
 
 use crate::error::{PilotError, Result};
-use crate::transport::{Connection, ConnectionState};
+use crate::protocol::dlp::{DlpClient, ProtocolVersion};
+use crate::transport::MockConnection;
 #[cfg(feature = "serial")]
 use crate::transport::Serial;
 #[cfg(feature = "usb")]
 use crate::transport::Usb;
+use crate::transport::{Connection, ConnectionState};
 #[cfg(feature = "net")]
 use crate::transport::{InetConnection, NetParams};
-use crate::transport::MockConnection;
-use crate::protocol::dlp::{DlpClient, ProtocolVersion};
 use std::io::{Read, Write};
 use std::sync::atomic::{AtomicI32, Ordering};
 
@@ -193,7 +193,7 @@ impl PilotSocket {
     pub fn new(family: ProtocolFamily, socket_type: SocketType) -> Self {
         static SOCKET_COUNTER: AtomicI32 = AtomicI32::new(0);
         let sd = SOCKET_COUNTER.fetch_add(1, Ordering::Relaxed) + 1;
-        
+
         Self {
             state: SocketState::Closed,
             socket_type,
@@ -207,7 +207,7 @@ impl PilotSocket {
             sd,
         }
     }
-    
+
     /// Create a stream socket for serial
     #[cfg(feature = "serial")]
     pub fn serial(port: &str) -> Self {
@@ -252,19 +252,18 @@ impl PilotSocket {
         socket.transport = Some(TransportConnection::Mock(MockConnection::new()));
         socket
     }
-    
+
     // ========================================================================
     // Connection Management
     // ========================================================================
-    
+
     /// Connect to a device
     pub fn connect(&mut self) -> Result<()> {
         if self.state != SocketState::Closed {
             return Err(PilotError::SockInvalid);
         }
 
-        let mut transport = self.transport.take()
-            .ok_or(PilotError::SockInvalid)?;
+        let mut transport = self.transport.take().ok_or(PilotError::SockInvalid)?;
 
         transport.connect()?;
         self.state = SocketState::Connected;
@@ -324,10 +323,13 @@ impl PilotSocket {
     pub fn is_connected(&self) -> bool {
         self.state == SocketState::Connected
             && self.dlp_client.as_ref().is_some_and(|c| {
-                c.transport().lock().map(|t| t.is_connected()).unwrap_or(false)
+                c.transport()
+                    .lock()
+                    .map(|t| t.is_connected())
+                    .unwrap_or(false)
             })
     }
-    
+
     /// Get connection state
     pub fn connection_state(&self) -> ConnectionState {
         match self.state {
@@ -336,35 +338,35 @@ impl PilotSocket {
             SocketState::Closed | SocketState::Listening => ConnectionState::Disconnected,
         }
     }
-    
+
     // ========================================================================
     // Transport Access
     // ========================================================================
-    
+
     /// Get mutable transport reference for protocol layer
     pub fn transport_mut(&mut self) -> Option<&mut TransportConnection> {
         self.transport.as_mut()
     }
-    
+
     /// Get transport reference
     pub fn transport(&self) -> Option<&TransportConnection> {
         self.transport.as_ref()
     }
-    
+
     // ========================================================================
     // DLP Operations
     // ========================================================================
-    
+
     /// Get DLP client reference
     pub fn dlp(&self) -> Option<&DlpClient> {
         self.dlp_client.as_ref()
     }
-    
+
     /// Get mutable DLP client reference
     pub fn dlp_mut(&mut self) -> Option<&mut DlpClient> {
         self.dlp_client.as_mut()
     }
-    
+
     /// Read system info
     pub async fn read_sys_info(&mut self) -> Result<crate::protocol::dlp::SystemInfo> {
         if let Some(ref mut client) = self.dlp_client {
@@ -373,7 +375,7 @@ impl PilotSocket {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// Read user info
     pub async fn read_user_info(&mut self) -> Result<crate::protocol::dlp::UserInfo> {
         if let Some(ref mut client) = self.dlp_client {
@@ -382,27 +384,31 @@ impl PilotSocket {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// List databases
     pub async fn list_databases(&mut self) -> Result<Vec<crate::database::DatabaseInfo>> {
         if let Some(ref mut client) = self.dlp_client {
-            client.read_db_list(0, crate::protocol::dlp::DlpDBListFlag::Ram, 0).await
+            client
+                .read_db_list(0, crate::protocol::dlp::DlpDBListFlag::Ram, 0)
+                .await
         } else {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// Open database
-    pub async fn open_database(&mut self, name: &str, mode: crate::protocol::dlp::DlpOpenMode) 
-        -> Result<crate::database::DatabaseHandle> 
-    {
+    pub async fn open_database(
+        &mut self,
+        name: &str,
+        mode: crate::protocol::dlp::DlpOpenMode,
+    ) -> Result<crate::database::DatabaseHandle> {
         if let Some(ref mut client) = self.dlp_client {
             client.open_db(0, name, mode).await
         } else {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// Close database
     pub async fn close_database(&mut self, handle: crate::database::DatabaseHandle) -> Result<()> {
         if let Some(ref mut client) = self.dlp_client {
@@ -411,78 +417,81 @@ impl PilotSocket {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// Read record by index
-    pub async fn read_record(&mut self, handle: crate::database::DatabaseHandle, index: u32) 
-        -> Result<crate::database::Record> 
-    {
+    pub async fn read_record(
+        &mut self,
+        handle: crate::database::DatabaseHandle,
+        index: u32,
+    ) -> Result<crate::database::Record> {
         if let Some(ref mut client) = self.dlp_client {
             client.read_record(handle, index).await
         } else {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     /// Read next modified record
-    pub async fn read_next_modified(&mut self, handle: crate::database::DatabaseHandle) 
-        -> Result<Option<crate::database::Record>> 
-    {
+    pub async fn read_next_modified(
+        &mut self,
+        handle: crate::database::DatabaseHandle,
+    ) -> Result<Option<crate::database::Record>> {
         if let Some(ref mut client) = self.dlp_client {
             client.read_next_modified_rec(handle).await
         } else {
             Err(PilotError::DlpSocket)
         }
     }
-    
+
     // ========================================================================
     // Properties
     // ========================================================================
-    
+
     /// Get socket descriptor
     pub fn sd(&self) -> i32 {
         self.sd
     }
-    
+
     /// Get socket state
     pub fn state(&self) -> SocketState {
         self.state
     }
-    
+
     /// Get socket type
     pub fn socket_type(&self) -> SocketType {
         self.socket_type
     }
-    
+
     /// Get protocol family
     pub fn protocol_family(&self) -> ProtocolFamily {
         self.protocol_family
     }
-    
+
     /// Get protocol version
     pub fn protocol_version(&self) -> ProtocolVersion {
         self.protocol_version
     }
-    
+
     /// Set protocol version
     pub fn set_protocol_version(&mut self, version: ProtocolVersion) {
         self.protocol_version = version;
     }
-    
+
     /// Get DLP version
     pub fn dlp_version(&self) -> Option<ProtocolVersion> {
         self.dlp_version
     }
-    
+
     /// Get maximum record size
     pub fn max_record_size(&self) -> u32 {
         self.max_record_size
     }
-    
+
     /// Get options
     pub fn options(&self) -> &SocketOptions {
         &self.options
     }
-    
+
     /// Set options
     pub fn set_options(&mut self, options: SocketOptions) {
         self.options = options;

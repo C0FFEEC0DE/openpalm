@@ -45,9 +45,15 @@ impl PalmPixAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// Image formats
@@ -76,8 +82,7 @@ impl ImageFormat {
 }
 
 /// Camera information
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CameraInfo {
     /// Camera make
     pub make: String,
@@ -94,7 +99,6 @@ pub struct CameraInfo {
     /// Focal length
     pub focal_length: Option<f32>,
 }
-
 
 /// Thumbnail image
 #[derive(Debug, Clone)]
@@ -380,13 +384,13 @@ pub mod constants {
 
     /// PalmPix database type
     pub const PALMPIX_TYPE: FourCharCode = FourCharCode(0x50696374); // "Pict"
-    
+
     /// PalmPix database creator
     pub const PALMPIX_CREATOR: FourCharCode = FourCharCode(0x50696374); // "Pict"
 
     /// Maximum image dimension
     pub const MAX_DIMENSION: u16 = 4096;
-    
+
     /// Default thumbnail size
     pub const THUMBNAIL_SIZE: u16 = 80;
 }
@@ -436,7 +440,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = PalmPixRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.width, 640);
         assert_eq!(parsed.height, 480);
         assert_eq!(parsed.description, "Test image");
@@ -447,7 +451,7 @@ mod tests {
     fn test_is_landscape() {
         let mut record = PalmPixRecord::default();
         assert!(!record.is_landscape());
-        
+
         record.width = 1280;
         record.height = 720;
         assert!(record.is_landscape());

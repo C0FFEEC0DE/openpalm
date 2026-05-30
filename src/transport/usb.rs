@@ -64,8 +64,8 @@ impl Usb {
             handle: None,
             device_info_str: None,
             _not_send: std::marker::PhantomData,
-            endpoint_in: 0x81,   // default Palm bulk IN endpoint
-            endpoint_out: 0x02,  // default Palm bulk OUT endpoint
+            endpoint_in: 0x81,  // default Palm bulk IN endpoint
+            endpoint_out: 0x02, // default Palm bulk OUT endpoint
         }
     }
 
@@ -125,7 +125,8 @@ impl Usb {
                         ));
 
                         // Discover bulk endpoint addresses from active config descriptor
-                        let mut config_desc: *const libusb::libusb_config_descriptor = std::ptr::null();
+                        let mut config_desc: *const libusb::libusb_config_descriptor =
+                            std::ptr::null();
                         if libusb::libusb_get_active_config_descriptor(dev, &mut config_desc) == 0
                             && !config_desc.is_null()
                         {
@@ -224,9 +225,7 @@ impl Read for Usb {
                 self.params.timeout_ms as u32,
             );
             if ret < 0 {
-                return Err(std::io::Error::other(
-                    format!("USB read error: {}", ret),
-                ));
+                return Err(std::io::Error::other(format!("USB read error: {}", ret)));
             }
             Ok(transferred as usize)
         }
@@ -253,9 +252,7 @@ impl Write for Usb {
                 self.params.timeout_ms as u32,
             );
             if ret < 0 {
-                return Err(std::io::Error::other(
-                    format!("USB write error: {}", ret),
-                ));
+                return Err(std::io::Error::other(format!("USB write error: {}", ret)));
             }
             Ok(transferred as usize)
         }

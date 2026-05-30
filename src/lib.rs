@@ -24,79 +24,81 @@
     clippy::single_match,
     clippy::arc_with_non_send_sync,
     clippy::wrong_self_convention,
-    clippy::filter_next,
+    clippy::filter_next
 )]
 
-pub mod error;
-pub mod types;
-pub mod transport;
-pub mod protocol;
-pub mod database;
-pub mod sync;
-pub mod records;
-pub mod vfs;
-pub mod utils;
 pub mod cli;
+pub mod database;
+pub mod error;
+pub mod protocol;
+pub mod records;
+pub mod sync;
+pub mod transport;
+pub mod types;
+pub mod utils;
+pub mod vfs;
 
 // Re-export commonly used types
-pub use error::{PilotError, Result, DlpError, VfsError};
+pub use error::{DlpError, PilotError, Result, VfsError};
 pub use types::{
-    PiBuffer, FourCharCode, DatabaseType, DatabaseCreator,
-    RecordFlags, DatabaseFlags, OpenMode, VfsOpenMode, VfsFileAttributes,
-    PalmDateTime, to_palm_time, from_palm_time,
-    MAX_DBP_NAME_LEN, MAX_VFS_FILENAME, DLP_BUF_SIZE,
-    RecordId, CardNo, DbHandle,
+    from_palm_time, to_palm_time, CardNo, DatabaseCreator, DatabaseFlags, DatabaseType, DbHandle,
+    FourCharCode, OpenMode, PalmDateTime, PiBuffer, RecordFlags, RecordId, VfsFileAttributes,
+    VfsOpenMode, DLP_BUF_SIZE, MAX_DBP_NAME_LEN, MAX_VFS_FILENAME,
 };
 
 // Protocol exports
-pub use protocol::{PilotSocket, ProtocolVersion};
 pub use protocol::dlp::DlpClient;
+pub use protocol::{PilotSocket, ProtocolVersion};
 
 // Database exports
-pub use database::{Database, DatabaseInfo, Record, DatabaseHandle};
+pub use database::{Database, DatabaseHandle, DatabaseInfo, Record};
 
 // Sync exports
-pub use sync::{SyncHandler, SyncStrategy, SyncDirection, SyncStats, SyncAction};
+pub use sync::{SyncAction, SyncDirection, SyncHandler, SyncStats, SyncStrategy};
 
 // Records exports
 pub use records::{
-    AddressRecord, CalendarEvent, CalendarAppInfo, TodoRecord, TodoAppInfo,
-    MemoRecord, MemoAppInfo, Priority, RepeatType, AlarmUnit,
-    ExpenseRecord, ExpenseAppInfo, ExpenseType, PaymentType,
-    NotepadRecord, NotepadAppInfo, NoteType,
-    MailRecord, MailAppInfo, MailPriority, MailFolder,
-    ContactRecord, ContactName, PhoneNumber, PhoneLabel,
-    DatebookRecord, DatebookAppInfo, EventType,
-    MoneyRecord, MoneyAccount, AccountType,
-    LocationRecord, GpsCoordinate, GpsDirection, Position,
-    VersaMailRecord, Sensitivity,
-    HiNoteRecord, HiNoteLanguage, HiNoteAttributes, Stroke, InkPoint,
-    PalmPixRecord, ImageFormat, CameraInfo, ImageOrientation,
-    CmpRecord, CmpMessageType, CmpPriority, CmpStatus, CmpHeader,
+    AccountType, AddressRecord, AlarmUnit, CalendarAppInfo, CalendarEvent, CameraInfo, CmpHeader,
+    CmpMessageType, CmpPriority, CmpRecord, CmpStatus, ContactName, ContactRecord, DatebookAppInfo,
+    DatebookRecord, EventType, ExpenseAppInfo, ExpenseRecord, ExpenseType, GpsCoordinate,
+    GpsDirection, HiNoteAttributes, HiNoteLanguage, HiNoteRecord, ImageFormat, ImageOrientation,
+    InkPoint, LocationRecord, MailAppInfo, MailFolder, MailPriority, MailRecord, MemoAppInfo,
+    MemoRecord, MoneyAccount, MoneyRecord, NoteType, NotepadAppInfo, NotepadRecord, PalmPixRecord,
+    PaymentType, PhoneLabel, PhoneNumber, Position, Priority, RepeatType, Sensitivity, Stroke,
+    TodoAppInfo, TodoRecord, VersaMailRecord,
 };
 
 // VFS exports
-pub use vfs::{
-    VolumeInfo, DirEntry, VolumeRef, FileRef,
-    
-    path,
-};
+pub use vfs::{path, DirEntry, FileRef, VolumeInfo, VolumeRef};
 // Note: VfsFileAttributes and VfsOpenMode are exported from types module
 
 // Utils exports
 pub use utils::{
-    crc16, crc32, checksum,
-    bytes_to_hex, hex_to_bytes, byte_to_hex,
-    align, pad_to_align,
+    align,
+    byte_to_hex,
+    bytes_to_hex,
+    checksum,
+    crc16,
+    crc32,
+    get_pilot_rate,
+    hex_to_bytes,
     make_fourcc,
-    timeout_to_duration, timeout_expired, system_time_to_timeout,
-    get_pilot_rate, pilot_rate_env,
-    DebugLevel, Logger,
+    pack_lpstring,
+    pack_pstring,
+    pack_string_list,
+    pad_to_align,
+    parse_lpstring,
     // String utilities
-    parse_pstring, pack_pstring,
-    parse_lpstring, pack_lpstring,
-    parse_string_list, pack_string_list,
-    pstring_size, string_list_size,
+    parse_pstring,
+    parse_string_list,
+    pilot_rate_env,
+    pstring_size,
+    string_list_size,
+    system_time_to_timeout,
+    timeout_expired,
+    timeout_to_duration,
+    DebugLevel,
+    Logger,
 };
 
 /// Library version

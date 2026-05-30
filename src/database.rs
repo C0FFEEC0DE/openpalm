@@ -4,7 +4,7 @@
 //! including database headers, records, and app info blocks.
 
 use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime, OpenMode, CardNo};
+use crate::types::{CardNo, DatabaseFlags, FourCharCode, OpenMode, PalmDateTime, RecordFlags};
 
 /// Database handle (returned by open operations)
 pub type DatabaseHandle = u8;
@@ -104,28 +104,28 @@ impl Record {
             sort_key: None,
         }
     }
-    
+
     /// Create with attributes
     pub fn with_attributes(mut self, attrs: RecordFlags) -> Self {
         self.attributes = attrs;
         self
     }
-    
+
     /// Get the record data as UTF-8 string (if valid UTF-8)
     pub fn data_as_str(&self) -> Option<&str> {
         std::str::from_utf8(&self.data).ok()
     }
-    
+
     /// Check if record is deleted
     pub fn is_deleted(&self) -> bool {
         self.attributes.contains(RecordFlags::DELETED)
     }
-    
+
     /// Check if record is dirty
     pub fn is_dirty(&self) -> bool {
         self.attributes.contains(RecordFlags::DIRTY)
     }
-    
+
     /// Check if record is busy
     pub fn is_busy(&self) -> bool {
         self.attributes.contains(RecordFlags::BUSY)
@@ -133,8 +133,7 @@ impl Record {
 }
 
 /// Database header (on-device format)
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct DatabaseHeader {
     /// Named database header (next 78 bytes)
     /// "Name" - database name (32 bytes, null-terminated)
@@ -171,14 +170,13 @@ pub struct DatabaseHeader {
     _reserved: [u8; 2],
 }
 
-
 impl DatabaseHeader {
     /// Parse from bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 86 {
             return Err(PilotError::DlpBufSize);
         }
-        
+
         let mut header = Self::default();
         header.name.copy_from_slice(&data[..32]);
         header.flags = u16::from_be_bytes([data[32], data[33]]);
@@ -198,14 +196,14 @@ impl DatabaseHeader {
         header._reserved.copy_from_slice(&data[82..84]);
 
         // Skip padding bytes 84..86
-        
+
         Ok(header)
     }
-    
+
     /// Convert to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut data = vec![0u8; 86];
-        
+
         data[..32].copy_from_slice(&self.name);
         data[32..34].copy_from_slice(&self.flags.to_be_bytes());
         data[34..36].copy_from_slice(&self.version.to_be_bytes());
@@ -224,10 +222,10 @@ impl DatabaseHeader {
         data[82..84].copy_from_slice(&self._reserved);
         // Pad to 86 bytes total
         data[84..86].copy_from_slice(&[0u8; 2]);
-        
+
         data
     }
-    
+
     /// Get database name as string
     pub fn name_str(&self) -> String {
         let end = self.name.iter().position(|&b| b == 0).unwrap_or(32);
@@ -252,25 +250,25 @@ impl RecordEntry {
         if data.len() < 8 {
             return Err(PilotError::DlpBufSize);
         }
-        
+
         Ok(Self {
             local_chunk_id: u32::from_be_bytes([data[0], data[1], data[2], data[3]]),
             attributes: data[4],
             unique_id: [data[5], data[6], data[7]],
         })
     }
-    
+
     /// Convert to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut data = vec![0u8; 8];
-        
+
         data[..4].copy_from_slice(&self.local_chunk_id.to_be_bytes());
         data[4] = self.attributes;
         data[5..8].copy_from_slice(&self.unique_id);
-        
+
         data
     }
-    
+
     /// Get the full record ID from unique_id
     pub fn record_id(&self) -> RecordId {
         // Record ID is based on unique ID allocation algorithm
@@ -298,21 +296,21 @@ impl AppInfo {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Parse from bytes
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < 4 {
             return Err(PilotError::DlpBufSize);
         }
-        
+
         let mut info = Self::default();
         info.version = u16::from_be_bytes([data[0], data[1]]);
         info.reserved = u16::from_be_bytes([data[2], data[3]]);
         info.data = data[4..].to_vec();
-        
+
         Ok(info)
     }
-    
+
     /// Convert to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut data = Vec::with_capacity(4 + self.data.len());
@@ -324,8 +322,7 @@ impl AppInfo {
 }
 
 /// Category definition
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Category {
     /// Category ID
     pub id: u8,
@@ -365,7 +362,6 @@ pub fn parse_categories(data: &[u8]) -> crate::error::Result<(Vec<Category>, u8,
     Ok((categories, last_uniq_id, &data[275..]))
 }
 
-
 /// Database wrapper
 #[derive(Debug)]
 pub struct Database {
@@ -392,17 +388,17 @@ impl Database {
             mode: OpenMode::READ,
         }
     }
-    
+
     /// Get database name
     pub fn name(&self) -> &str {
         &self.info.name
     }
-    
+
     /// Get number of records
     pub fn record_count(&self) -> u32 {
         self.info.num_records
     }
-    
+
     /// Check if database is open
     pub fn is_open(&self) -> bool {
         self.handle != 0
@@ -416,7 +412,7 @@ mod tests {
     #[test]
     fn test_record_basic() {
         let record = Record::new(0x10000000, vec![0x01, 0x02, 0x03]);
-        
+
         assert_eq!(record.id, 0x10000000);
         assert_eq!(record.data, vec![0x01, 0x02, 0x03]);
         assert!(!record.is_deleted());
@@ -428,10 +424,10 @@ mod tests {
         // Set name as null-terminated string "TestDB" (5 chars + null = 6 bytes)
         header.name[..6].copy_from_slice(&b"TestDB\0"[..6]);
         header.num_records = 10;
-        
+
         let bytes = header.to_bytes();
         let parsed = DatabaseHeader::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(parsed.name_str(), "TestDB");
         assert_eq!(parsed.num_records, 10);
     }
@@ -443,10 +439,10 @@ mod tests {
             attributes: 0,
             unique_id: [0x10, 0x20, 0x30],
         };
-        
+
         let bytes = entry.to_bytes();
         let parsed = RecordEntry::from_bytes(&bytes).unwrap();
-        
+
         assert_eq!(parsed.local_chunk_id, 0x11223344);
         assert_eq!(parsed.unique_id, [0x10, 0x20, 0x30]);
     }

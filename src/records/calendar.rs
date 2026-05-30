@@ -111,39 +111,39 @@ impl CalendarEvent {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Check if has alarm
     pub fn has_alarm(&self) -> bool {
         (self.alarm & 0x80) != 0
     }
-    
+
     /// Get alarm minutes
     pub fn alarm_minutes(&self) -> u8 {
         self.alarm as u8 & 0x7F
     }
-    
+
     /// Unpack from record data
     pub fn unpack(data: &[u8]) -> Result<Self> {
         if data.len() < 22 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
+
         let mut event = Self::default();
-        
+
         // Parse header
         event.event = u32::from_be_bytes([data[0], data[1], data[2], data[3]]);
-        
+
         // Parse start time
         let start_palm = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
         event.begin = PalmDateTime::from_palm(start_palm);
-        
+
         // Parse end time
         let end_palm = u32::from_be_bytes([data[8], data[9], data[10], data[11]]);
         event.end = PalmDateTime::from_palm(end_palm);
-        
+
         // Parse alarm
         event.alarm = data[12] as u16;
-        
+
         // Parse advance
         event.advance = data[13];
         event.advance_units = match data[14] & 0x03 {
@@ -152,7 +152,7 @@ impl CalendarEvent {
             2 => AlarmUnit::Days,
             _ => AlarmUnit::Minutes,
         };
-        
+
         // Parse flags
         let flags = data[15];
         let _has_alarm = (flags & CalendarFlags::ALARM) != 0;
@@ -161,7 +161,7 @@ impl CalendarEvent {
         let _has_exceptions = (flags & CalendarFlags::EXCEPTIONS) != 0;
         let has_description = (flags & CalendarFlags::DESCRIPTION) != 0;
         let has_location = (flags & CalendarFlags::LOCATION) != 0;
-        
+
         // Parse repeat info if present
         if has_repeat && data.len() >= 22 {
             event.repeat_type = match data[16] {
@@ -173,12 +173,12 @@ impl CalendarEvent {
                 5 => RepeatType::Yearly,
                 _ => RepeatType::None,
             };
-            
+
             event.repeat_forever = (data[17] & 0x80) != 0;
-            
+
             // Parse repeat frequency
             event.repeat_frequency = u16::from_be_bytes([data[18], data[19]]);
-            
+
             // Parse repeat days (for weekly)
             event.repeat_days[0] = (data[20] & 0x01) != 0;
             event.repeat_days[1] = (data[20] & 0x02) != 0;
@@ -187,28 +187,35 @@ impl CalendarEvent {
             event.repeat_days[4] = (data[20] & 0x10) != 0;
             event.repeat_days[5] = (data[20] & 0x20) != 0;
             event.repeat_days[6] = (data[20] & 0x40) != 0;
-            
+
             event.repeat_day = data[21];
             event.repeat_weekstart = data[22];
 
             let mut repeat_offset = 23;
             if !event.repeat_forever && data.len() >= repeat_offset + 4 {
                 event.repeat_end = PalmDateTime::from_palm(u32::from_be_bytes([
-                    data[repeat_offset], data[repeat_offset + 1],
-                    data[repeat_offset + 2], data[repeat_offset + 3],
+                    data[repeat_offset],
+                    data[repeat_offset + 1],
+                    data[repeat_offset + 2],
+                    data[repeat_offset + 3],
                 ]));
                 repeat_offset += 4;
             }
 
             if _has_exceptions && data.len() >= repeat_offset + 2 {
-                event.exceptions = u16::from_be_bytes([data[repeat_offset], data[repeat_offset + 1]]);
+                event.exceptions =
+                    u16::from_be_bytes([data[repeat_offset], data[repeat_offset + 1]]);
                 repeat_offset += 2;
                 for _ in 0..event.exceptions {
                     if data.len() >= repeat_offset + 4 {
-                        event.exception.push(PalmDateTime::from_palm(u32::from_be_bytes([
-                            data[repeat_offset], data[repeat_offset + 1],
-                            data[repeat_offset + 2], data[repeat_offset + 3],
-                        ])));
+                        event
+                            .exception
+                            .push(PalmDateTime::from_palm(u32::from_be_bytes([
+                                data[repeat_offset],
+                                data[repeat_offset + 1],
+                                data[repeat_offset + 2],
+                                data[repeat_offset + 3],
+                            ])));
                         repeat_offset += 4;
                     }
                 }
@@ -219,38 +226,58 @@ impl CalendarEvent {
         let mut offset = if has_repeat {
             let base = 23usize;
             let mut end_offset = base;
-            if !event.repeat_forever { end_offset += 4; }
+            if !event.repeat_forever {
+                end_offset += 4;
+            }
             if _has_exceptions && data.len() >= end_offset + 2 {
-                let exc_count = u16::from_be_bytes([data[end_offset], data[end_offset + 1]]) as usize;
+                let exc_count =
+                    u16::from_be_bytes([data[end_offset], data[end_offset + 1]]) as usize;
                 end_offset += 2 + exc_count * 4;
             }
             end_offset
-        } else { 16 };
-        
+        } else {
+            16
+        };
+
         if has_description {
-            let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.description = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
+            let end = data[offset..]
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(data.len() - offset);
+            event.description = Some(crate::utils::decode_palm_string(
+                &data[offset..offset + end],
+            ));
             offset += end + 1;
         }
-        
+
         if has_note && offset < data.len() {
-            let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.note = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
+            let end = data[offset..]
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(data.len() - offset);
+            event.note = Some(crate::utils::decode_palm_string(
+                &data[offset..offset + end],
+            ));
             offset += end + 1;
         }
-        
+
         if has_location && offset < data.len() {
-            let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.location = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
+            let end = data[offset..]
+                .iter()
+                .position(|&b| b == 0)
+                .unwrap_or(data.len() - offset);
+            event.location = Some(crate::utils::decode_palm_string(
+                &data[offset..offset + end],
+            ));
         }
-        
+
         Ok(event)
     }
-    
+
     /// Pack to record data
     pub fn pack(&self) -> Vec<u8> {
         let mut data = Vec::new();
-        
+
         // Header
         data.extend_from_slice(&self.event.to_be_bytes());
         data.extend_from_slice(&self.begin.to_palm().to_be_bytes());
@@ -258,17 +285,29 @@ impl CalendarEvent {
         data.push(self.alarm as u8);
         data.push(self.advance);
         data.push(self.advance_units as u8);
-        
+
         // Flags
         let mut flags: u8 = 0;
-        if self.has_alarm() { flags |= CalendarFlags::ALARM; }
-        if self.repeat_type != RepeatType::None { flags |= CalendarFlags::REPEAT; }
-        if self.note.is_some() { flags |= CalendarFlags::NOTE; }
-        if self.description.is_some() { flags |= CalendarFlags::DESCRIPTION; }
-        if self.location.is_some() { flags |= CalendarFlags::LOCATION; }
-        if self.exceptions > 0 { flags |= CalendarFlags::EXCEPTIONS; }
+        if self.has_alarm() {
+            flags |= CalendarFlags::ALARM;
+        }
+        if self.repeat_type != RepeatType::None {
+            flags |= CalendarFlags::REPEAT;
+        }
+        if self.note.is_some() {
+            flags |= CalendarFlags::NOTE;
+        }
+        if self.description.is_some() {
+            flags |= CalendarFlags::DESCRIPTION;
+        }
+        if self.location.is_some() {
+            flags |= CalendarFlags::LOCATION;
+        }
+        if self.exceptions > 0 {
+            flags |= CalendarFlags::EXCEPTIONS;
+        }
         data.push(flags);
-        
+
         // Repeat info
         if self.repeat_type != RepeatType::None {
             data.push(self.repeat_type as u8);
@@ -297,34 +336,38 @@ impl CalendarEvent {
                 data.extend_from_slice(&ex.to_palm().to_be_bytes());
             }
         }
-        
+
         // Strings
         if let Some(ref desc) = self.description {
             data.extend_from_slice(desc.as_bytes());
             data.push(0);
         }
-        
+
         if let Some(ref note) = self.note {
             data.extend_from_slice(note.as_bytes());
             data.push(0);
         }
-        
+
         if let Some(ref loc) = self.location {
             data.extend_from_slice(loc.as_bytes());
             data.push(0);
         }
-        
+
         data
     }
-    
+
     /// Get repeat description
     pub fn repeat_description(&self) -> String {
         match self.repeat_type {
             RepeatType::None => "No repeat".to_string(),
             RepeatType::Daily => format!("Daily every {} day(s)", self.repeat_frequency),
             RepeatType::Weekly => format!("Weekly every {} week(s)", self.repeat_frequency),
-            RepeatType::MonthlyByDay => format!("Monthly by day every {} month(s)", self.repeat_frequency),
-            RepeatType::MonthlyByDate => format!("Monthly by date every {} month(s)", self.repeat_frequency),
+            RepeatType::MonthlyByDay => {
+                format!("Monthly by day every {} month(s)", self.repeat_frequency)
+            }
+            RepeatType::MonthlyByDate => {
+                format!("Monthly by date every {} month(s)", self.repeat_frequency)
+            }
             RepeatType::Yearly => "Yearly".to_string(),
         }
     }
@@ -371,7 +414,9 @@ impl CalendarAppInfo {
         let mut data = Vec::with_capacity(279);
         let mut renamed: u16 = 0;
         for (i, cat) in self.categories.iter().enumerate() {
-            if cat.flags != 0 { renamed |= 1 << i; }
+            if cat.flags != 0 {
+                renamed |= 1 << i;
+            }
         }
         data.extend_from_slice(&renamed.to_be_bytes());
         for cat in &self.categories {
@@ -390,8 +435,7 @@ impl CalendarAppInfo {
 }
 
 /// Calendar DB info
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct CalendarDbInfo {
     /// Version
     pub version: u16,
@@ -402,7 +446,6 @@ pub struct CalendarDbInfo {
     /// Default calendar
     pub default_calendar: u8,
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -455,7 +498,10 @@ mod tests {
         assert_eq!(unpacked.event, 42);
         assert_eq!(unpacked.repeat_type, RepeatType::Weekly);
         assert_eq!(unpacked.repeat_frequency, 2);
-        assert_eq!(unpacked.repeat_days, [true, false, true, false, true, false, false]);
+        assert_eq!(
+            unpacked.repeat_days,
+            [true, false, true, false, true, false, false]
+        );
         assert_eq!(unpacked.repeat_end.to_palm(), 0x12345678);
         assert_eq!(unpacked.repeat_weekstart, 1);
         assert_eq!(unpacked.exceptions, 2);

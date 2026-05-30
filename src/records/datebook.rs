@@ -41,9 +41,15 @@ impl DatebookAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// Event types
@@ -127,7 +133,7 @@ impl AlarmInfo {
         }
     }
 
-    /// Pack to bytes (4 bytes: minutes[2] + unit[1] + sound_repeat[1])
+    /// Pack to bytes (4 bytes: minutes\[2\] + unit\[1\] + sound_repeat\[1\])
     pub fn pack(&self) -> Vec<u8> {
         let mut data = Vec::with_capacity(4);
         data.extend_from_slice(&self.minutes.to_be_bytes());
@@ -376,7 +382,9 @@ impl DatebookRecord {
 
     fn parse_string(data: &[u8], offset: usize) -> Result<(String, usize)> {
         if offset > data.len() {
-            return Err(PilotError::InvalidData("parse_string offset out of bounds".into()));
+            return Err(PilotError::InvalidData(
+                "parse_string offset out of bounds".into(),
+            ));
         }
         let mut end = offset;
         while end < data.len() && data[end] != 0 {
@@ -412,8 +420,19 @@ impl DatebookRecord {
         let hour = (time / 60) as u8;
         let minute = (time % 60) as u8;
         let pm = hour >= 12;
-        let display_hour = if hour == 0 { 12 } else if hour > 12 { hour - 12 } else { hour };
-        format!("{:02}:{:02} {}", display_hour, minute, if pm { "PM" } else { "AM" })
+        let display_hour = if hour == 0 {
+            12
+        } else if hour > 12 {
+            hour - 12
+        } else {
+            hour
+        };
+        format!(
+            "{:02}:{:02} {}",
+            display_hour,
+            minute,
+            if pm { "PM" } else { "AM" }
+        )
     }
 }
 
@@ -423,13 +442,13 @@ pub mod constants {
 
     /// Datebook database type
     pub const DATEBOOK_TYPE: FourCharCode = FourCharCode(0x44617442); // "DatB"
-    
+
     /// Datebook database creator
     pub const DATEBOOK_CREATOR: FourCharCode = FourCharCode(0x44617442); // "DatB"
 
     /// Minutes in a day
     pub const MINUTES_PER_DAY: u16 = 1440;
-    
+
     /// Maximum event duration (minutes)
     pub const MAX_DURATION: u16 = 1440;
 }
@@ -462,10 +481,18 @@ mod tests {
 
     #[test]
     fn test_alarm_info() {
-        let alarm = AlarmInfo { minutes: 30, unit: 0, sound_repeat: 0 };
+        let alarm = AlarmInfo {
+            minutes: 30,
+            unit: 0,
+            sound_repeat: 0,
+        };
         assert_eq!(alarm.total_minutes(), 30);
 
-        let alarm_hours = AlarmInfo { minutes: 1, unit: 1, sound_repeat: 0 };
+        let alarm_hours = AlarmInfo {
+            minutes: 1,
+            unit: 1,
+            sound_repeat: 0,
+        };
         assert_eq!(alarm_hours.total_minutes(), 60);
     }
 
@@ -523,7 +550,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = DatebookRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.description, "Team meeting");
         assert_eq!(parsed.note, "Discuss project");
         assert_eq!(parsed.duration_minutes(), 60);
@@ -544,8 +571,7 @@ mod tests {
         // (should not read past end)
         let mut data = vec![
             // start_time, end_time, date, flags, alarm, duration
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         data.extend_from_slice(b"desc\0");
         data.extend_from_slice(b"note\0");
@@ -554,7 +580,7 @@ mod tests {
         data.push(1); // frequency
         data.push(0); // day_of_week
         data.push(1); // day_of_month
-        // Only 2 bytes of end_date (need 4)
+                      // Only 2 bytes of end_date (need 4)
         data.push(0);
         data.push(0);
 
@@ -569,8 +595,7 @@ mod tests {
         // Description without null terminator at end of buffer
         let mut data = vec![
             // start_time, end_time, date, flags, alarm, duration
-            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-            0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
         ];
         data.extend_from_slice(b"no-null"); // no trailing zero
 

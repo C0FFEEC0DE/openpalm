@@ -14,11 +14,11 @@ impl Priority {
     pub fn new(level: u8) -> Self {
         Priority(level.min(5).max(1))
     }
-    
+
     pub fn level(&self) -> u8 {
         self.0
     }
-    
+
     pub fn is_valid(&self) -> bool {
         (1..=5).contains(&self.0)
     }
@@ -59,7 +59,7 @@ impl TodoRecord {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Create with description
     pub fn with_description(description: &str) -> Self {
         Self {
@@ -67,18 +67,18 @@ impl TodoRecord {
             ..Default::default()
         }
     }
-    
+
     /// Unpack from record data (todo_v1 format)
     pub fn unpack(data: &[u8]) -> Result<Self> {
         if data.len() < 3 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
+
         let mut record = Self::default();
-        
+
         // Parse due date
         let due_short = u16::from_be_bytes([data[0], data[1]]);
-        
+
         if due_short != 0xFFFF {
             // Parse date from 16-bit Palm format
             // Format: YYYYYYYMMMMMDDDDD where Y=year-1904, M=month-1, D=day
@@ -93,27 +93,27 @@ impl TodoRecord {
         } else {
             record.indefinite = true;
         }
-        
+
         // Parse priority
         let priority_byte = data[2];
         if (priority_byte & 0x80) != 0 {
             record.complete = true;
         }
         record.priority = Priority(priority_byte & 0x7F);
-        
+
         // Parse description (required)
         if data.len() < 4 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
+
         let desc_end = data[3..]
             .iter()
             .position(|&b| b == 0)
             .map(|p| 3 + p)
             .unwrap_or(data.len());
-        
+
         record.description = crate::utils::decode_palm_string(&data[3..desc_end]);
-        
+
         // Parse note (optional)
         let note_start = desc_end + 1;
         if note_start < data.len() {
@@ -122,19 +122,21 @@ impl TodoRecord {
                 .position(|&b| b == 0)
                 .map(|p| note_start + p)
                 .unwrap_or(data.len());
-            
+
             if note_start < note_end {
-                record.note = Some(crate::utils::decode_palm_string(&data[note_start..note_end]));
+                record.note = Some(crate::utils::decode_palm_string(
+                    &data[note_start..note_end],
+                ));
             }
         }
-        
+
         Ok(record)
     }
-    
+
     /// Pack to record data (todo_v1 format)
     pub fn pack(&self) -> Vec<u8> {
         let mut data = Vec::new();
-        
+
         // Due date (2 bytes)
         if self.indefinite || self.due.is_none() {
             data.push(0xFF);
@@ -142,62 +144,62 @@ impl TodoRecord {
         } else if let Some(ref due) = self.due {
             let (year, month, day) = due.get_date();
             // Format: YYYYYYYMMMMMDDDDD where Y=year-1904, M=month-1, D=day
-            let due_short = (((year - 1904) & 0x7F) << 9) |
-                           (((month as u16 - 1) & 0x0F) << 5) |
-                           ((day as u16) & 0x1F);
+            let due_short = (((year - 1904) & 0x7F) << 9)
+                | (((month as u16 - 1) & 0x0F) << 5)
+                | ((day as u16) & 0x1F);
             data.extend_from_slice(&due_short.to_be_bytes());
         } else {
             data.push(0);
             data.push(0);
         }
-        
+
         // Priority byte
         let mut priority_byte = self.priority.0 & 0x7F;
         if self.complete {
             priority_byte |= 0x80;
         }
         data.push(priority_byte);
-        
+
         // Description
         data.extend_from_slice(self.description.as_bytes());
         data.push(0);
-        
+
         // Note
         if let Some(ref note) = self.note {
             data.extend_from_slice(note.as_bytes());
             data.push(0);
         }
-        
+
         data
     }
-    
+
     /// Check if overdue
     pub fn is_overdue(&self) -> bool {
         if self.indefinite || self.complete {
             return false;
         }
-        
+
         if let Some(ref due) = self.due {
             let now = PalmDateTime::now();
             return *due < now;
         }
-        
+
         false
     }
-    
+
     /// Get due date as string
     pub fn due_as_str(&self) -> String {
         if self.indefinite {
             return "No due date".to_string();
         }
-        
+
         if let Some(ref due) = self.due {
             return due.format("%Y-%m-%d");
         }
-        
+
         "Unknown".to_string()
     }
-    
+
     /// Get status string
     pub fn status_str(&self) -> &'static str {
         if self.complete {
@@ -246,19 +248,25 @@ impl TodoAppInfo {
             sort_by_due_date: (flags & 0x04) != 0,
         })
     }
-    
+
     /// Convert to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&self.last_unique_id.to_be_bytes());
         data.push(self.num_reminders);
-        
+
         let mut flags: u8 = 0;
-        if self.show_completed { flags |= 0x01; }
-        if self.sort_by_priority { flags |= 0x02; }
-        if self.sort_by_due_date { flags |= 0x04; }
+        if self.show_completed {
+            flags |= 0x01;
+        }
+        if self.sort_by_priority {
+            flags |= 0x02;
+        }
+        if self.sort_by_due_date {
+            flags |= 0x04;
+        }
         data.push(flags);
-        
+
         data
     }
 }
@@ -282,10 +290,10 @@ mod tests {
         record.note = Some("Don't forget milk!".to_string());
         record.priority = Priority(3);
         record.complete = true;
-        
+
         let packed = record.pack();
         let unpacked = TodoRecord::unpack(&packed).unwrap();
-        
+
         assert_eq!(unpacked.description, "Buy groceries");
         assert_eq!(unpacked.note, Some("Don't forget milk!".to_string()));
         assert_eq!(unpacked.priority.level(), 3);

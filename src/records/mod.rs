@@ -4,32 +4,36 @@
 
 mod address;
 mod calendar;
-mod todo;
-mod memo;
-mod expense;
-mod notepad;
-mod mail;
+mod cmp;
 mod contact;
 mod datebook;
-mod money;
-mod location;
-mod versamail;
+mod expense;
 mod hinote;
+mod location;
+mod mail;
+mod memo;
+mod money;
+mod notepad;
 mod palmpix;
-mod cmp;
+mod todo;
+mod versamail;
 
 pub use address::AddressRecord;
-pub use calendar::{CalendarEvent, CalendarAppInfo, RepeatType, AlarmUnit};
-pub use todo::{TodoRecord, TodoAppInfo, Priority};
-pub use memo::{MemoRecord, MemoAppInfo};
-pub use expense::{ExpenseRecord, ExpenseAppInfo, ExpenseType, PaymentType, CurrencyInfo};
-pub use notepad::{NotepadRecord, NotepadAppInfo, NotepadAttributes, NoteType};
-pub use mail::{MailRecord, MailAppInfo, MailPriority, MailFolder};
-pub use contact::{ContactRecord, ContactName, PhoneNumber, PhoneLabel, PostalAddress, ImAddress};
-pub use datebook::{DatebookRecord, DatebookAppInfo, EventType, RepeatInfo, AlarmInfo};
-pub use money::{MoneyRecord, MoneyAccount, MoneyAppInfo, AccountType};
-pub use location::{LocationRecord, GpsCoordinate, GpsDirection, Position};
-pub use versamail::{VersaMailRecord, VersaMailAccount, Attachment, Sensitivity};
-pub use hinote::{HiNoteRecord, HiNoteLanguage, HiNoteAttributes, Stroke, InkPoint, RecognitionMode};
-pub use palmpix::{PalmPixRecord, ImageFormat, PalmPixAttributes, CameraInfo, Thumbnail, ImageOrientation};
-pub use cmp::{CmpRecord, CmpMessageType, CmpPriority, CmpStatus, CmpHeader, CmpSession};
+pub use calendar::{AlarmUnit, CalendarAppInfo, CalendarEvent, RepeatType};
+pub use cmp::{CmpHeader, CmpMessageType, CmpPriority, CmpRecord, CmpSession, CmpStatus};
+pub use contact::{ContactName, ContactRecord, ImAddress, PhoneLabel, PhoneNumber, PostalAddress};
+pub use datebook::{AlarmInfo, DatebookAppInfo, DatebookRecord, EventType, RepeatInfo};
+pub use expense::{CurrencyInfo, ExpenseAppInfo, ExpenseRecord, ExpenseType, PaymentType};
+pub use hinote::{
+    HiNoteAttributes, HiNoteLanguage, HiNoteRecord, InkPoint, RecognitionMode, Stroke,
+};
+pub use location::{GpsCoordinate, GpsDirection, LocationRecord, Position};
+pub use mail::{MailAppInfo, MailFolder, MailPriority, MailRecord};
+pub use memo::{MemoAppInfo, MemoRecord};
+pub use money::{AccountType, MoneyAccount, MoneyAppInfo, MoneyRecord};
+pub use notepad::{NoteType, NotepadAppInfo, NotepadAttributes, NotepadRecord};
+pub use palmpix::{
+    CameraInfo, ImageFormat, ImageOrientation, PalmPixAttributes, PalmPixRecord, Thumbnail,
+};
+pub use todo::{Priority, TodoAppInfo, TodoRecord};
+pub use versamail::{Attachment, Sensitivity, VersaMailAccount, VersaMailRecord};

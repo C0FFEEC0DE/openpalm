@@ -46,10 +46,18 @@ impl MoneyAttributes {
     pub const ARCHIVE: u8 = 0x10;
     pub const DIRTY: u8 = 0x40;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
-    pub fn is_dirty(&self) -> bool { (self.0 & Self::DIRTY) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
+    pub fn is_dirty(&self) -> bool {
+        (self.0 & Self::DIRTY) != 0
+    }
 }
 
 /// Transaction types
@@ -144,7 +152,12 @@ impl MoneyRecord {
         offset += 4;
 
         // Currency
-        record.currency = [data[offset], data[offset + 1], data[offset + 2], data[offset + 3]];
+        record.currency = [
+            data[offset],
+            data[offset + 1],
+            data[offset + 2],
+            data[offset + 3],
+        ];
         offset += 4;
 
         // Reconciled flag
@@ -305,16 +318,16 @@ pub mod constants {
 
     /// Money database type
     pub const MONEY_TYPE: FourCharCode = FourCharCode(0x4D6F6E65); // "Mone"
-    
+
     /// Money database creator
     pub const MONEY_CREATOR: FourCharCode = FourCharCode(0x4D6F6E65); // "Mone"
 
     /// Maximum accounts
     pub const MAX_ACCOUNTS: usize = 20;
-    
+
     /// Maximum splits per transaction
     pub const MAX_SPLITS: usize = 20;
-    
+
     /// Decimal places
     pub const DECIMAL_PLACES: i32 = 2;
 }
@@ -348,7 +361,7 @@ mod tests {
     fn test_money_amount() {
         let mut record = MoneyRecord::default();
         assert_eq!(record.amount_float(), 0.0);
-        
+
         record.set_amount_float(123.45);
         assert_eq!(record.amount, 12345);
         assert_eq!(record.amount_float(), 123.45);
@@ -364,7 +377,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = MoneyRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.account, "Checking");
         assert_eq!(parsed.description, "Grocery shopping");
         assert_eq!(parsed.amount_float(), 56.78);

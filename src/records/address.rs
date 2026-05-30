@@ -85,59 +85,59 @@ impl AddressRecord {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// Unpack from record data (address_v1 format)
     pub fn unpack(data: &[u8]) -> Result<Self> {
         if data.len() < 9 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
+
         let mut record = Self::default();
-        
+
         // Parse phone flag bytes
         let byte1 = data[1];
         let byte2 = data[2];
         let byte3 = data[3];
-        
+
         record.show_phone = (byte1 >> 4) & 0x0F;
         record.phone_labels[4] = byte1 & 0x0F;
         record.phone_labels[3] = (byte2 >> 4) & 0x0F;
         record.phone_labels[2] = byte2 & 0x0F;
         record.phone_labels[1] = (byte3 >> 4) & 0x0F;
         record.phone_labels[0] = byte3 & 0x0F;
-        
+
         // Parse contents bitmask
         let contents = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
-        
+
         // Offset to start of string data
         let mut offset = 9usize;
-        
+
         // Parse each entry if corresponding bit is set
         for i in 0..24 {
             if contents & (1 << i) != 0 {
                 if offset >= data.len() {
                     break;
                 }
-                
+
                 // Find null terminator
                 let end = data[offset..]
                     .iter()
                     .position(|&b| b == 0)
                     .map(|p| offset + p)
                     .unwrap_or(data.len());
-                
+
                 if offset < end {
                     let s = crate::utils::decode_palm_string(&data[offset..end]);
                     record.entry[i] = Some(s);
                 }
-                
+
                 offset = end + 1;
             }
         }
-        
+
         Ok(record)
     }
-    
+
     /// Pack to record data (address_v1 format)
     pub fn pack(&self) -> Vec<u8> {
         // First calculate total size
@@ -147,36 +147,35 @@ impl AddressRecord {
                 size += entry.as_ref().unwrap().len() + 1;
             }
         }
-        
+
         let mut data = vec![0u8; size];
-        
+
         // Build contents bitmask
         let mut contents: u32 = 0;
         let mut string_start: Option<usize> = None;
-        
+
         for (i, entry) in self.entry.iter().enumerate() {
             if entry.is_some() {
                 contents |= 1 << i;
-                
+
                 if string_start.is_none() {
                     string_start = Some(9);
                 }
             }
         }
-        
+
         // Phone flags
-        let phone_flag: u32 = 
-            (self.phone_labels[0] as u32) |
-            ((self.phone_labels[1] as u32) << 4) |
-            ((self.phone_labels[2] as u32) << 8) |
-            ((self.phone_labels[3] as u32) << 12) |
-            ((self.phone_labels[4] as u32) << 16) |
-            ((self.show_phone as u32) << 20);
-        
+        let phone_flag: u32 = (self.phone_labels[0] as u32)
+            | ((self.phone_labels[1] as u32) << 4)
+            | ((self.phone_labels[2] as u32) << 8)
+            | ((self.phone_labels[3] as u32) << 12)
+            | ((self.phone_labels[4] as u32) << 16)
+            | ((self.show_phone as u32) << 20);
+
         data[0..4].copy_from_slice(&phone_flag.to_be_bytes());
         data[4..8].copy_from_slice(&contents.to_be_bytes());
         data[8] = string_start.map(|s| s as u8).unwrap_or(9).saturating_sub(8);
-        
+
         // Write strings
         let mut offset = 9;
         for s in self.entry.iter().flatten() {
@@ -186,29 +185,33 @@ impl AddressRecord {
             data[offset] = 0;
             offset += 1;
         }
-        
+
         data
     }
-    
+
     /// Get entry by type
     pub fn get(&self, entry: AddressEntry) -> Option<&str> {
         self.entry[entry as usize].as_deref()
     }
-    
+
     /// Set entry by type
     pub fn set(&mut self, entry: AddressEntry, value: Option<String>) {
         self.entry[entry as usize] = value;
     }
-    
+
     /// Get full name
     pub fn full_name(&self) -> String {
         let parts: Vec<&str> = [
             self.entry[AddressEntry::FirstName as usize].as_deref(),
             self.entry[AddressEntry::LastName as usize].as_deref(),
-        ].into_iter().flatten().collect();
-        
+        ]
+        .into_iter()
+        .flatten()
+        .collect();
+
         if parts.is_empty() {
-            self.entry[AddressEntry::Company as usize].as_deref()
+            self.entry[AddressEntry::Company as usize]
+                .as_deref()
                 .unwrap_or("(no name)")
                 .to_string()
         } else {
@@ -259,7 +262,7 @@ impl PhoneLabel {
             _ => PhoneLabel::Phone,
         }
     }
-    
+
     pub fn to_u8(&self) -> u8 {
         *self as u8
     }
@@ -361,7 +364,11 @@ mod tests {
         let unpacked = AddressRecord::unpack(&packed).unwrap();
 
         assert_eq!(unpacked.show_phone, 3, "show_phone round-trip failed");
-        assert_eq!(unpacked.phone_labels, [1, 2, 3, 4, 5], "phone_labels round-trip failed");
+        assert_eq!(
+            unpacked.phone_labels,
+            [1, 2, 3, 4, 5],
+            "phone_labels round-trip failed"
+        );
         assert_eq!(unpacked.get(AddressEntry::LastName), Some("Smith"));
         assert_eq!(unpacked.get(AddressEntry::Phone1), Some("555-1234"));
     }
@@ -372,14 +379,14 @@ mod tests {
         let mut data = vec![0u8; 275];
         // renamedCategories bitfield (2 bytes, big-endian)
         data[0..2].copy_from_slice(&0x0003u16.to_be_bytes()); // categories 0 and 1 renamed
-        // Category 0 label: "Personal" at offset 2
+                                                              // Category 0 label: "Personal" at offset 2
         data[2..10].copy_from_slice(b"Personal");
         // Category 1 label: "Business" at offset 18
         data[18..26].copy_from_slice(b"Business");
         // Category unique IDs at offset 258
         data[258] = 1; // cat 0 uniq id
         data[259] = 2; // cat 1 uniq id
-        // lastUniqID at offset 274
+                       // lastUniqID at offset 274
         data[274] = 3;
         // Country code follows at offset 275 (2 bytes)
         data.extend_from_slice(&0x0001u16.to_be_bytes());
@@ -387,9 +394,15 @@ mod tests {
         let info = AddressAppInfo::from_bytes(&data).unwrap();
         assert_eq!(info.categories.len(), 16);
         assert_eq!(info.categories[0].id, 0);
-        assert_eq!(String::from_utf8_lossy(&info.categories[0].name).trim_end_matches('\0'), "Personal");
+        assert_eq!(
+            String::from_utf8_lossy(&info.categories[0].name).trim_end_matches('\0'),
+            "Personal"
+        );
         assert_eq!(info.categories[1].id, 1);
-        assert_eq!(String::from_utf8_lossy(&info.categories[1].name).trim_end_matches('\0'), "Business");
+        assert_eq!(
+            String::from_utf8_lossy(&info.categories[1].name).trim_end_matches('\0'),
+            "Business"
+        );
         assert_eq!(info.last_unique_id, 3);
         assert_eq!(info.country, 1);
     }
@@ -399,7 +412,7 @@ mod tests {
         let mut record = AddressRecord::new();
         record.entry[AddressEntry::LastName as usize] = Some("Doe".to_string());
         record.entry[AddressEntry::FirstName as usize] = Some("John".to_string());
-        
+
         assert_eq!(record.full_name(), "John Doe");
     }
 }

@@ -1,26 +1,28 @@
 //! Database commands
 
-use crate::error::{PilotError, Result};
-use crate::PilotSocket;
 use crate::cli::print_table;
+use crate::error::{PilotError, Result};
 use crate::types::FourCharCode;
+use crate::PilotSocket;
 use std::fs::File;
 use std::io::Write;
 
 /// List all databases on the device
 pub async fn list(socket: &mut PilotSocket) -> Result<()> {
     let dbs = socket.list_databases().await?;
-    let rows: Vec<Vec<String>> = dbs.iter().map(|db| vec![
-        db.name.clone(),
-        db.creator.to_string(),
-        db.db_type.to_string(),
-        format!("{}", db.num_records),
-        format!("{}", db.total_bytes),
-    ]).collect();
-    print_table(
-        &["Name", "Creator", "Type", "Records", "Size"],
-        &rows,
-    );
+    let rows: Vec<Vec<String>> = dbs
+        .iter()
+        .map(|db| {
+            vec![
+                db.name.clone(),
+                db.creator.to_string(),
+                db.db_type.to_string(),
+                format!("{}", db.num_records),
+                format!("{}", db.total_bytes),
+            ]
+        })
+        .collect();
+    print_table(&["Name", "Creator", "Type", "Records", "Size"], &rows);
     Ok(())
 }
 
@@ -28,7 +30,7 @@ pub async fn list(socket: &mut PilotSocket) -> Result<()> {
 pub async fn info(socket: &mut PilotSocket, name: &str) -> Result<()> {
     let dbs = socket.list_databases().await?;
     let db = dbs.iter().find(|d| d.name == name);
-    
+
     match db {
         Some(db) => {
             println!("Database:    {}", db.name);
@@ -46,7 +48,7 @@ pub async fn info(socket: &mut PilotSocket, name: &str) -> Result<()> {
             println!("Database '{}' not found.", name);
         }
     }
-    
+
     Ok(())
 }
 
@@ -54,10 +56,17 @@ pub async fn info(socket: &mut PilotSocket, name: &str) -> Result<()> {
 pub async fn dump(socket: &mut PilotSocket, name: &str) -> Result<()> {
     use crate::protocol::dlp::DlpOpenMode;
     let handle = socket.open_database(name, DlpOpenMode::Read).await?;
-    let db_info = socket.dlp().ok_or(PilotError::DlpSocket)?.read_open_db_info(0, handle).await?;
-    
-    println!("Dumping database: {} ({} records)", name, db_info.1.num_records);
-    
+    let db_info = socket
+        .dlp()
+        .ok_or(PilotError::DlpSocket)?
+        .read_open_db_info(0, handle)
+        .await?;
+
+    println!(
+        "Dumping database: {} ({} records)",
+        name, db_info.1.num_records
+    );
+
     for i in 0..db_info.1.num_records {
         match socket.read_record(handle, i).await {
             Ok(record) => {
@@ -74,7 +83,7 @@ pub async fn dump(socket: &mut PilotSocket, name: &str) -> Result<()> {
             }
         }
     }
-    
+
     socket.close_database(handle).await?;
     Ok(())
 }
@@ -91,22 +100,30 @@ pub async fn create(
     }
     let creator = FourCharCode::from_str(creator);
     let db_type = FourCharCode::from_str(db_type);
-    
-    let card = socket.dlp().ok_or(PilotError::DlpSocket)?.create_db(
-        creator,
-        db_type,
-        0,
-        crate::types::DatabaseFlags::empty(),
-        0,
-        name,
-    ).await?;
+
+    let card = socket
+        .dlp()
+        .ok_or(PilotError::DlpSocket)?
+        .create_db(
+            creator,
+            db_type,
+            0,
+            crate::types::DatabaseFlags::empty(),
+            0,
+            name,
+        )
+        .await?;
     println!("Created database '{}' on card {}", name, card);
     Ok(())
 }
 
 /// Delete a database
 pub async fn delete(socket: &mut PilotSocket, name: &str) -> Result<()> {
-    socket.dlp().ok_or(PilotError::DlpSocket)?.delete_db(0, name).await?;
+    socket
+        .dlp()
+        .ok_or(PilotError::DlpSocket)?
+        .delete_db(0, name)
+        .await?;
     println!("Deleted database '{}'.", name);
     Ok(())
 }
@@ -115,12 +132,16 @@ pub async fn delete(socket: &mut PilotSocket, name: &str) -> Result<()> {
 pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Result<()> {
     use crate::protocol::dlp::DlpOpenMode;
     let handle = socket.open_database(name, DlpOpenMode::Read).await?;
-    let db_info = socket.dlp().ok_or(PilotError::DlpSocket)?.read_open_db_info(0, handle).await?;
+    let db_info = socket
+        .dlp()
+        .ok_or(PilotError::DlpSocket)?
+        .read_open_db_info(0, handle)
+        .await?;
     let num_records = db_info.1.num_records as usize;
-    
-    let mut file = File::create(output)
-        .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
-    
+
+    let mut file =
+        File::create(output).map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
+
     // Build header
     let mut header = crate::database::DatabaseHeader::default();
     {
@@ -144,10 +165,10 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
     header.next_rec_list_id = 0;
     header.num_records = db_info.1.num_records;
     header.unique_record_seed = 0;
-    
+
     file.write_all(&header.to_bytes())
         .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
-    
+
     // Read all records
     let mut records = Vec::with_capacity(num_records);
     for i in 0..num_records as u32 {
@@ -159,7 +180,7 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
             }
         }
     }
-    
+
     // Write record entries (offset, attributes, uniqueID)
     let header_size = 86u32;
     let entry_size = 8u32;
@@ -174,7 +195,7 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
             .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         current_offset += record.data.len() as u32;
     }
-    
+
     // Write record data
     for record in &records {
         if !record.data.is_empty() {
@@ -182,9 +203,12 @@ pub async fn export(socket: &mut PilotSocket, name: &str, output: &str) -> Resul
                 .map_err(|e| crate::error::PilotError::FileError(e.to_string()))?;
         }
     }
-    
-    println!("Exported database '{}' to '{}' ({} records)", name, output, num_records);
-    
+
+    println!(
+        "Exported database '{}' to '{}' ({} records)",
+        name, output, num_records
+    );
+
     socket.close_database(handle).await?;
     Ok(())
 }

@@ -147,10 +147,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         #[cfg(feature = "net")]
         Commands::Server { bind, port } => {
             println!("Starting server on {}:{}", bind, port);
-            let mut socket = openpalm::PilotSocket::net_listen(
-                &bind,
-                port,
-            )?;
+            let mut socket = openpalm::PilotSocket::net_listen(&bind, port)?;
             println!("Waiting for connection...");
             socket.accept()?;
             println!("Client connected!");
@@ -159,130 +156,119 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             result?;
         }
         Commands::Sync => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::sync::sync_device(socket).await
-                }),
-            ).await?;
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::sync::sync_device(socket).await })
+            })
+            .await?;
         }
         Commands::Info => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::device::info(socket).await
-                }),
-            ).await?;
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::device::info(socket).await })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::List } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::db::list(socket).await
-                }),
-            ).await?;
+        Commands::Db {
+            command: DbCommands::List,
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::db::list(socket).await })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::Info { name } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::db::info(socket, &name).await
-                }),
-            ).await?;
+        Commands::Db {
+            command: DbCommands::Info { name },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::db::info(socket, &name).await })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::Dump { name } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::db::dump(socket, &name).await
-                }),
-            ).await?;
+        Commands::Db {
+            command: DbCommands::Dump { name },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::db::dump(socket, &name).await })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::Create { name, creator, db_type } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
+        Commands::Db {
+            command:
+                DbCommands::Create {
+                    name,
+                    creator,
+                    db_type,
+                },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move {
                     openpalm::cli::db::create(socket, &name, &creator, &db_type).await
-                }),
-            ).await?;
+                })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::Delete { name } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::db::delete(socket, &name).await
-                }),
-            ).await?;
+        Commands::Db {
+            command: DbCommands::Delete { name },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::db::delete(socket, &name).await })
+            })
+            .await?;
         }
-        Commands::Db { command: DbCommands::Export { name, output } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::db::export(socket, &name, &output).await
-                }),
-            ).await?;
+        Commands::Db {
+            command: DbCommands::Export { name, output },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::db::export(socket, &name, &output).await })
+            })
+            .await?;
         }
-        Commands::Record { command: RecordCommands::List { db } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::record::list(socket, &db).await
-                }),
-            ).await?;
+        Commands::Record {
+            command: RecordCommands::List { db },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::record::list(socket, &db).await })
+            })
+            .await?;
         }
-        Commands::Record { command: RecordCommands::Read { db, index } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::record::read(socket, &db, index).await
-                }),
-            ).await?;
+        Commands::Record {
+            command: RecordCommands::Read { db, index },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::record::read(socket, &db, index).await })
+            })
+            .await?;
         }
-        Commands::Resource { command: ResourceCommands::List { db } } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::resource::list(socket, &db).await
-                }),
-            ).await?;
+        Commands::Resource {
+            command: ResourceCommands::List { db },
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::resource::list(socket, &db).await })
+            })
+            .await?;
         }
-        Commands::Vfs { command: VfsCommands::Volumes } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::vfs::volumes(socket).await
-                }),
-            ).await?;
+        Commands::Vfs {
+            command: VfsCommands::Volumes,
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::vfs::volumes(socket).await })
+            })
+            .await?;
         }
-        Commands::Datetime { command: DatetimeCommands::Show } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::datetime::show(socket).await
-                }),
-            ).await?;
+        Commands::Datetime {
+            command: DatetimeCommands::Show,
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::datetime::show(socket).await })
+            })
+            .await?;
         }
-        Commands::Datetime { command: DatetimeCommands::Set } => {
-            openpalm::cli::with_connection(
-                cli.port.as_deref(),
-                cli.host.as_deref(),
-                |socket| Box::pin(async move {
-                    openpalm::cli::datetime::set_now(socket).await
-                }),
-            ).await?;
+        Commands::Datetime {
+            command: DatetimeCommands::Set,
+        } => {
+            openpalm::cli::with_connection(cli.port.as_deref(), cli.host.as_deref(), |socket| {
+                Box::pin(async move { openpalm::cli::datetime::set_now(socket).await })
+            })
+            .await?;
         }
     }
 

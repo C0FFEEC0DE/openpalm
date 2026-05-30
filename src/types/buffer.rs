@@ -3,9 +3,9 @@
 //! Provides reliable and easy to use variable size buffer management.
 
 use std::alloc::{alloc, dealloc, realloc, Layout};
+use std::fmt;
 use std::ptr;
 use std::slice;
-use std::fmt;
 
 /// Buffer error type
 #[derive(Debug, Clone)]
@@ -74,7 +74,11 @@ impl PiBuffer {
             panic!("Failed to allocate buffer");
         }
 
-        PiBuffer { data, capacity, used: 0 }
+        PiBuffer {
+            data,
+            capacity,
+            used: 0,
+        }
     }
 
     /// Create a buffer from existing data
@@ -92,7 +96,7 @@ impl PiBuffer {
     /// Append data to the buffer
     pub fn append(&mut self, data: &[u8]) -> BufferResult<()> {
         self.reserve_more(data.len())?;
-        
+
         unsafe {
             ptr::copy_nonoverlapping(data.as_ptr(), self.data.add(self.used), data.len());
             self.used += data.len();
@@ -163,7 +167,7 @@ impl PiBuffer {
         }
 
         let new_layout = Layout::from_size_align(new_capacity, 1).map_err(|_| BufferError)?;
-        
+
         let new_data = if self.data.is_null() {
             unsafe { alloc(new_layout) }
         } else {
@@ -202,7 +206,9 @@ impl PiBuffer {
 
     /// Find a byte sequence in the buffer
     pub fn find(&self, needle: &[u8]) -> Option<usize> {
-        self.as_slice().windows(needle.len()).position(|window| window == needle)
+        self.as_slice()
+            .windows(needle.len())
+            .position(|window| window == needle)
     }
 
     /// Extract a subset of the buffer
@@ -328,7 +334,7 @@ mod tests {
         let mut buf = PiBuffer::new(16);
         assert!(buf.append(b"hello").is_ok());
         assert_eq!(buf.len(), 5);
-        
+
         assert!(buf.append(b" world").is_ok());
         assert_eq!(buf.len(), 11);
     }

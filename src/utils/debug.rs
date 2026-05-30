@@ -2,7 +2,6 @@
 //!
 //! This module provides debugging and logging utilities.
 
-
 /// Debug level
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum DebugLevel {
@@ -56,7 +55,7 @@ impl HexDumpOptions {
     pub fn standard() -> Self {
         Self::default()
     }
-    
+
     /// Compact hex dump (8 bytes per line)
     pub fn compact() -> Self {
         Self {
@@ -66,7 +65,7 @@ impl HexDumpOptions {
             group_size: 1,
         }
     }
-    
+
     /// Detailed hex dump with 4-byte groups
     pub fn detailed() -> Self {
         Self {
@@ -82,16 +81,16 @@ impl HexDumpOptions {
 pub fn hex_dump(data: &[u8], options: &HexDumpOptions) -> String {
     let mut result = String::new();
     let mut offset = 0;
-    
+
     while offset < data.len() {
         let end = std::cmp::min(offset + options.bytes_per_line, data.len());
         let line = &data[offset..end];
-        
+
         // Offset
         if options.show_offset {
             result.push_str(&format!("{:04X}: ", offset));
         }
-        
+
         // Hex bytes
         let mut hex_str = String::new();
         for (i, &byte) in line.iter().enumerate() {
@@ -102,14 +101,14 @@ pub fn hex_dump(data: &[u8], options: &HexDumpOptions) -> String {
                 hex_str.push(' ');
             }
         }
-        
+
         // Pad hex if needed
         while hex_str.len() < options.bytes_per_line * 3 {
             hex_str.push(' ');
         }
-        
+
         result.push_str(&hex_str);
-        
+
         // ASCII representation
         if options.show_ascii {
             result.push_str(" |");
@@ -122,11 +121,11 @@ pub fn hex_dump(data: &[u8], options: &HexDumpOptions) -> String {
             }
             result.push('|');
         }
-        
+
         result.push('\n');
         offset = end;
     }
-    
+
     result
 }
 
@@ -142,20 +141,23 @@ pub fn dump_slp_packet(data: &[u8]) -> String {
     if data.is_empty() {
         return "Empty SLP packet".to_string();
     }
-    
+
     let mut result = String::from("SLP Packet:\n");
-    
+
     // Try to parse header
     if data.len() >= 4 {
         result.push_str(&format!("  Type: 0x{:02X}\n", data[0]));
         result.push_str(&format!("  Flags: 0x{:02X}\n", data[1]));
         result.push_str(&format!("  Seq: {}\n", data[2]));
-        result.push_str(&format!("  Len: {}\n", u16::from_be_bytes([data[3], data[4]])));
+        result.push_str(&format!(
+            "  Len: {}\n",
+            u16::from_be_bytes([data[3], data[4]])
+        ));
     }
-    
+
     result.push_str("  Data:\n");
     result.push_str(&hex_dump(data, &HexDumpOptions::compact()));
-    
+
     result
 }
 
@@ -164,9 +166,9 @@ pub fn dump_padp_packet(data: &[u8]) -> String {
     if data.is_empty() {
         return "Empty PADP packet".to_string();
     }
-    
+
     let mut result = String::from("PADP Packet:\n");
-    
+
     if data.len() >= 4 {
         result.push_str(&format!("  Type: 0x{:02X}\n", data[0] & 0x03));
         result.push_str(&format!("  Flags: 0x{:02X}\n", data[1]));
@@ -174,10 +176,10 @@ pub fn dump_padp_packet(data: &[u8]) -> String {
         let len = u16::from_be_bytes([data[3], data[4]]);
         result.push_str(&format!("  Size: {}\n", len));
     }
-    
+
     result.push('\n');
     result.push_str(&hex_dump(data, &HexDumpOptions::standard()));
-    
+
     result
 }
 
@@ -186,22 +188,22 @@ pub fn dump_dlp_packet(data: &[u8]) -> String {
     if data.len() < 6 {
         return format!("DLP packet too short ({} bytes)", data.len());
     }
-    
+
     let mut result = String::from("DLP Packet:\n");
-    
+
     let command = u16::from_be_bytes([data[0], data[1]]);
     let arg_size = u16::from_be_bytes([data[2], data[3]]);
     let flags = data[4];
-    
+
     result.push_str(&format!("  Command: 0x{:04X}\n", command));
     result.push_str(&format!("  Arg Size: {}\n", arg_size));
     result.push_str(&format!("  Flags: 0x{:02X}\n", flags));
-    
+
     if data.len() > 6 {
         result.push_str("  Args:\n");
         result.push_str(&hex_dump(&data[6..], &HexDumpOptions::compact()));
     }
-    
+
     result
 }
 
@@ -219,40 +221,40 @@ impl Logger {
             prefix: prefix.to_string(),
         }
     }
-    
+
     /// Set debug level
     pub fn set_level(&mut self, level: DebugLevel) {
         self.level = level;
     }
-    
+
     /// Log error
     pub fn error(&self, msg: &str) {
         if self.level >= DebugLevel::Error {
             eprintln!("[{} ERROR] {}", self.prefix, msg);
         }
     }
-    
+
     /// Log warning
     pub fn warning(&self, msg: &str) {
         if self.level >= DebugLevel::Warning {
             eprintln!("[{} WARN] {}", self.prefix, msg);
         }
     }
-    
+
     /// Log info
     pub fn info(&self, msg: &str) {
         if self.level >= DebugLevel::Info {
             println!("[{} INFO] {}", self.prefix, msg);
         }
     }
-    
+
     /// Log debug
     pub fn debug(&self, msg: &str) {
         if self.level >= DebugLevel::Debug {
             println!("[{} DEBUG] {}", self.prefix, msg);
         }
     }
-    
+
     /// Log verbose
     pub fn verbose(&self, msg: &str) {
         if self.level >= DebugLevel::Verbose {

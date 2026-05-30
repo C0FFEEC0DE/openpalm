@@ -3,13 +3,13 @@
 //! DLP is the protocol used by HotSync to communicate with Palm OS devices.
 //! It provides database operations, record management, system info, and more.
 
-use crate::error::{PilotError, Result};
-use crate::types::{FourCharCode, DatabaseFlags, RecordFlags, PalmDateTime};
 use crate::database::{DatabaseInfo, Record};
+use crate::error::{PilotError, Result};
+use crate::protocol::socket::TransportConnection;
 use crate::types::CardNo;
+use crate::types::{DatabaseFlags, FourCharCode, PalmDateTime, RecordFlags};
 use std::sync::{Arc, Mutex};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::protocol::socket::TransportConnection;
 
 // ============================================================================
 // DLP Constants
@@ -20,7 +20,7 @@ pub const DLP_VERSION_MAJOR: u8 = 1;
 pub const DLP_VERSION_MINOR: u8 = 4;
 
 /// Internal DLP argument constants
-const DLP_ARG_TINY_LEN: usize = 0x3F;   // tiny: 6-bit length (max 63 bytes), id implicit from position
+const DLP_ARG_TINY_LEN: usize = 0x3F; // tiny: 6-bit length (max 63 bytes), id implicit from position
 const DLP_ARG_SHORT_LEN: usize = 0x3FFF; // short: 14-bit length (max 16383 bytes), 1 explicit id byte
 const DLP_ARG_FIRST_ID: u8 = 0x20;
 
@@ -310,7 +310,6 @@ pub struct UserInfo {
     pub successful_sync_date: Option<PalmDateTime>,
 }
 
-
 /// Storage card information
 #[derive(Debug, Clone)]
 pub struct StorageInfo {
@@ -351,15 +350,15 @@ pub struct FileRef(u64);
 
 impl FileRef {
     pub const INVALID: FileRef = FileRef(0);
-    
+
     pub fn new(val: u64) -> Self {
         FileRef(val)
     }
-    
+
     pub fn value(&self) -> u64 {
         self.0
     }
-    
+
     pub fn is_valid(&self) -> bool {
         self.0 != 0
     }
@@ -371,15 +370,15 @@ pub struct VolumeRef(u16);
 
 impl VolumeRef {
     pub const INVALID: VolumeRef = VolumeRef(0);
-    
+
     pub fn new(val: u16) -> Self {
         VolumeRef(val)
     }
-    
+
     pub fn value(&self) -> u16 {
         self.0
     }
-    
+
     pub fn is_valid(&self) -> bool {
         self.0 != 0
     }
@@ -655,8 +654,7 @@ impl DlpResponse {
             return Err(PilotError::InvalidArgument);
         }
         Ok(u64::from_be_bytes([
-            data[0], data[1], data[2], data[3],
-            data[4], data[5], data[6], data[7],
+            data[0], data[1], data[2], data[3], data[4], data[5], data[6], data[7],
         ]))
     }
 
@@ -767,7 +765,7 @@ impl DlpClient {
             max_record_size: 0xFFFF,
         }
     }
-    
+
     /// Get a reference to the underlying transport
     pub fn transport(&self) -> Arc<Mutex<TransportConnection>> {
         Arc::clone(&self.transport)
@@ -779,7 +777,7 @@ impl DlpClient {
         F: FnOnce(&mut TransportConnection) -> R,
     {
         let mut guard = self.transport.lock().unwrap();
-        f(&mut *guard)
+        f(&mut guard)
     }
 
     /// Set the protocol version
@@ -796,7 +794,7 @@ impl DlpClient {
     pub fn max_record_size(&self) -> u32 {
         self.max_record_size
     }
-    
+
     /// Send a DLP request and receive response
     async fn send_request(&self, request: &DlpRequest) -> Result<DlpResponse> {
         use std::io::{Read, Write};
@@ -893,19 +891,19 @@ impl DlpClient {
     // ========================================================================
 
     /// Read system information from the device
-    /// 
+    ///
     /// Returns device system information including:
     /// - ROM version
     /// - Localization settings
     /// - Manufacturer info
-    /// 
+    ///
     /// # Arguments
     /// * `none`
-    /// 
+    ///
     /// # Returns
     /// * `Ok(SystemInfo)` - System information from device
     /// * `Err(PilotError)` - Communication or protocol error
-    /// 
+    ///
     /// # Example
     /// ```ignore
     /// let sys_info = client.read_sys_info().await?;
@@ -914,21 +912,21 @@ impl DlpClient {
     pub async fn read_sys_info(&self) -> Result<SystemInfo> {
         let req = DlpRequest::new(DlpFunction::ReadSysInfo);
         let response = self.send_request(&req).await?;
-        
+
         // Parse response
         if response.args.len() < 6 {
             return Err(PilotError::DlpBufSize);
         }
-        
+
         let rom_version = response.get_u32(0)?;
         let locale = response.get_u32(1)?;
         let prod_id_len = response.get_u8(2)?;
         let prod_id = response.get_string(3)?;
-        
+
         // DLP version info (optional in response)
         let dlp_major = response.get_u16(4).unwrap_or(1);
         let dlp_minor = response.get_u16(5).unwrap_or(4);
-        
+
         Ok(SystemInfo {
             rom_version,
             locale,
@@ -943,22 +941,22 @@ impl DlpClient {
     }
 
     /// Read storage information for a card
-    /// 
+    ///
     /// Returns information about storage on a memory card including
     /// total and free space.
-    /// 
+    ///
     /// # Arguments
     /// * `card_no` - Card number (usually 0 for internal, 1+ for expansion)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(StorageInfo)` - Storage information
     /// * `Err(PilotError)` - Error reading storage info
     pub async fn read_storage_info(&self, card_no: CardNo) -> Result<StorageInfo> {
         let mut req = DlpRequest::new(DlpFunction::ReadStorageInfo);
         req.add_u8(card_no);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         // Parse based on StorageInfo struct fields
         // version, rom_size, ram_size, ram_free, name, manufacturer, creation_date
         let version = response.get_i32(0).unwrap_or(0);
@@ -967,7 +965,7 @@ impl DlpClient {
         let ram_free = response.get_u32(3).unwrap_or(0);
         let name = response.get_string(4).unwrap_or_default();
         let manufacturer = response.get_string(5).unwrap_or_default();
-        
+
         Ok(StorageInfo {
             version,
             rom_size,
@@ -980,22 +978,22 @@ impl DlpClient {
     }
 
     /// Read user information (user name, user ID)
-    /// 
+    ///
     /// Returns the user's information configured on the device.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(UserInfo)` - User information
     /// * `Err(PilotError)` - Error reading user info
     pub async fn read_user_info(&self) -> Result<UserInfo> {
         let req = DlpRequest::new(DlpFunction::ReadUserInfo);
         let response = self.send_request(&req).await?;
-        
+
         // Parse UserInfo from response
         let user_id = response.get_u32(0).unwrap_or(0);
         let viewer_id = response.get_u32(1).unwrap_or(0);
         let username = response.get_string(2).unwrap_or_default();
         let last_sync_pc = response.get_u32(3).unwrap_or(0);
-        
+
         Ok(UserInfo {
             username,
             user_id,
@@ -1007,12 +1005,12 @@ impl DlpClient {
     }
 
     /// Write user information to device
-    /// 
+    ///
     /// Updates the user's information on the device.
-    /// 
+    ///
     /// # Arguments
     /// * `user` - User information to write
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - User info written successfully
     /// * `Err(PilotError)` - Error writing user info
@@ -1021,48 +1019,48 @@ impl DlpClient {
         req.add_u32(user.user_id);
         req.add_u32(user.last_sync_pc);
         req.add_string(&user.username);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
 
     /// Get system date/time from device
-    /// 
+    ///
     /// Reads the current date/time from the device's internal clock.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(PalmDateTime)` - Current device date/time
     /// * `Err(PilotError)` - Error reading date/time
     pub async fn get_sys_datetime(&self) -> Result<PalmDateTime> {
         let req = DlpRequest::new(DlpFunction::GetSysDateTime);
         let response = self.send_request(&req).await?;
-        
+
         let seconds = response.get_u32(0).unwrap_or(0);
         Ok(PalmDateTime::from_palm(seconds))
     }
 
     /// Set system date/time on device
-    /// 
+    ///
     /// Updates the device's internal clock.
-    /// 
+    ///
     /// # Arguments
     /// * `datetime` - New date/time to set
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - Date/time set successfully
     /// * `Err(PilotError)` - Error setting date/time
     pub async fn set_sys_datetime(&self, datetime: PalmDateTime) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::SetSysDateTime);
         req.add_u32(datetime.to_palm());
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
 
     /// Reset last sync PC
-    /// 
+    ///
     /// Resets the last sync PC ID to zero, forcing a full sync.
-    /// 
+    ///
     /// # Returns
     /// * `Ok(())` - Reset successful
     /// * `Err(PilotError)` - Error resetting sync PC
@@ -1073,13 +1071,13 @@ impl DlpClient {
     }
 
     /// Read a feature from the device
-    /// 
+    ///
     /// Features are key-value pairs stored in the device's NVFS.
-    /// 
+    ///
     /// # Arguments
     /// * `creator` - Creator ID of the feature
     /// * `num` - Feature number
-    /// 
+    ///
     /// # Returns
     /// * `Ok(u32)` - Feature value
     /// * `Err(PilotError)` - Feature not found or error
@@ -1087,7 +1085,7 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::ReadFeature);
         req.add_u32(creator.to_u32());
         req.add_i32(num);
-        
+
         let response = self.send_request(&req).await?;
         response.get_u32(0).map_err(|_| PilotError::RecordNotFound)
     }
@@ -1102,12 +1100,22 @@ impl DlpClient {
         req.add_u8(handle);
         req.add_u32(index);
         let response = self.send_request(&req).await?;
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         Ok(data)
     }
 
     /// Write a resource to an open database
-    pub async fn write_resource(&self, handle: u8, resource_type: u32, resource_id: u16, data: &[u8]) -> Result<()> {
+    pub async fn write_resource(
+        &self,
+        handle: u8,
+        resource_type: u32,
+        resource_id: u16,
+        data: &[u8],
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::WriteResource);
         req.add_u8(handle);
         req.add_u32(resource_type);
@@ -1118,7 +1126,12 @@ impl DlpClient {
     }
 
     /// Delete a resource from an open database
-    pub async fn delete_resource(&self, handle: u8, resource_type: u32, resource_id: u16) -> Result<()> {
+    pub async fn delete_resource(
+        &self,
+        handle: u8,
+        resource_type: u32,
+        resource_id: u16,
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::DeleteResource);
         req.add_u8(handle);
         req.add_u32(resource_type);
@@ -1132,14 +1145,14 @@ impl DlpClient {
     // ========================================================================
 
     /// Read list of databases on a card
-    /// 
+    ///
     /// Returns a list of all databases matching the specified criteria.
-    /// 
+    ///
     /// # Arguments
     /// * `card_no` - Card number (0 for internal storage)
     /// * `flags` - Filter flags for database types
     /// * `start` - Starting index (for pagination)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Vec<DatabaseInfo>)` - List of databases
     /// * `Err(PilotError)` - Error reading database list
@@ -1153,7 +1166,7 @@ impl DlpClient {
         req.add_u8(card_no);
         req.add_u8(flags as u8);
         req.add_u32(start);
-        
+
         let response = self.send_request(&req).await?;
 
         // Parse database list from response.
@@ -1166,27 +1179,27 @@ impl DlpClient {
 
         while db_offset + ARGS_PER_DB <= response.args.len() {
             let info = DatabaseInfo {
-                name:            response.get_string(db_offset).unwrap_or_default(),
-                flags:           DatabaseFlags::from_bits_truncate(
-                                    response.get_u16(db_offset + 1).unwrap_or(0)),
-                db_type:         FourCharCode::from_u32(
-                                    response.get_u32(db_offset + 2).unwrap_or(0)),
-                creator:         FourCharCode::from_u32(
-                                    response.get_u32(db_offset + 3).unwrap_or(0)),
-                card_no:         response.get_u8(db_offset + 4).unwrap_or(0),
-                db_id:           response.get_u32(db_offset + 5).unwrap_or(0),
-                created:         PalmDateTime::from_palm_time(
-                                    response.get_u32(db_offset + 6).unwrap_or(0)),
-                modified:        PalmDateTime::from_palm_time(
-                                    response.get_u32(db_offset + 7).unwrap_or(0)),
-                backup_date:     PalmDateTime::from_palm_time(
-                                    response.get_u32(db_offset + 8).unwrap_or(0)),
-                mod_num:         response.get_u32(db_offset + 9).unwrap_or(0),
-                total_bytes:     response.get_u32(db_offset + 10).unwrap_or(0),
-                data_bytes:      response.get_u32(db_offset + 11).unwrap_or(0),
-                num_records:     response.get_u16(db_offset + 12).unwrap_or(0) as u32,
-                unique_id_seed:  response.get_u32(db_offset + 13).unwrap_or(0),
-                app_info_dirty:  false,
+                name: response.get_string(db_offset).unwrap_or_default(),
+                flags: DatabaseFlags::from_bits_truncate(
+                    response.get_u16(db_offset + 1).unwrap_or(0),
+                ),
+                db_type: FourCharCode::from_u32(response.get_u32(db_offset + 2).unwrap_or(0)),
+                creator: FourCharCode::from_u32(response.get_u32(db_offset + 3).unwrap_or(0)),
+                card_no: response.get_u8(db_offset + 4).unwrap_or(0),
+                db_id: response.get_u32(db_offset + 5).unwrap_or(0),
+                created: PalmDateTime::from_palm_time(response.get_u32(db_offset + 6).unwrap_or(0)),
+                modified: PalmDateTime::from_palm_time(
+                    response.get_u32(db_offset + 7).unwrap_or(0),
+                ),
+                backup_date: PalmDateTime::from_palm_time(
+                    response.get_u32(db_offset + 8).unwrap_or(0),
+                ),
+                mod_num: response.get_u32(db_offset + 9).unwrap_or(0),
+                total_bytes: response.get_u32(db_offset + 10).unwrap_or(0),
+                data_bytes: response.get_u32(db_offset + 11).unwrap_or(0),
+                num_records: response.get_u16(db_offset + 12).unwrap_or(0) as u32,
+                unique_id_seed: response.get_u32(db_offset + 13).unwrap_or(0),
+                app_info_dirty: false,
                 sort_info_dirty: false,
             };
 
@@ -1198,13 +1211,13 @@ impl DlpClient {
     }
 
     /// Find database by name
-    /// 
+    ///
     /// Searches for a database with the specified name on the given card.
-    /// 
+    ///
     /// # Arguments
     /// * `card_no` - Card number to search
     /// * `name` - Database name to find
-    /// 
+    ///
     /// # Returns
     /// * `Ok(Some(DatabaseInfo))` - Database found
     /// * `Ok(None)` - Database not found
@@ -1215,35 +1228,30 @@ impl DlpClient {
         name: &str,
     ) -> Result<Option<DatabaseInfo>> {
         let databases = self.read_db_list(card_no, DlpDBListFlag::Ram, 0).await?;
-        
+
         Ok(databases.into_iter().find(|db| db.name == name))
     }
 
     /// Open a database
-    /// 
+    ///
     /// Opens an existing database for reading/writing.
-    /// 
+    ///
     /// # Arguments
     /// * `card_no` - Card number
     /// * `name` - Database name
     /// * `mode` - Open mode (read, write, etc.)
-    /// 
+    ///
     /// # Returns
     /// * `Ok(u8)` - Database handle number
     /// * `Err(PilotError)` - Error opening database
-    pub async fn open_db(
-        &self,
-        card_no: CardNo,
-        name: &str,
-        mode: DlpOpenMode,
-    ) -> Result<u8> {
+    pub async fn open_db(&self, card_no: CardNo, name: &str, mode: DlpOpenMode) -> Result<u8> {
         let mut req = DlpRequest::new(DlpFunction::OpenDB);
         req.add_u8(card_no);
         req.add_u8(mode.bits());
         req.add_string(name);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         Ok(response.get_u32(0).unwrap_or(0) as u8)
     }
 
@@ -1251,7 +1259,7 @@ impl DlpClient {
     pub async fn close_db(&self, handle: u8) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::CloseDB);
         req.add_u8(handle);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1279,9 +1287,9 @@ impl DlpClient {
         req.add_u16(flags.bits());
         req.add_u16(version as u16);
         req.add_string(name);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         Ok(response.get_u32(0).unwrap_or(0) as u8)
     }
 
@@ -1290,13 +1298,17 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::DeleteDB);
         req.add_u8(card_no);
         req.add_string(name);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
 
     /// Read database info for open database
-    pub async fn read_open_db_info(&self, card_no: CardNo, handle: u8) -> Result<(u32, DatabaseInfo)> {
+    pub async fn read_open_db_info(
+        &self,
+        card_no: CardNo,
+        handle: u8,
+    ) -> Result<(u32, DatabaseInfo)> {
         let mut req = DlpRequest::new(DlpFunction::ReadOpenDBInfo);
         req.add_u8(card_no);
         req.add_u32(handle as u32);
@@ -1306,27 +1318,21 @@ impl DlpClient {
         let num_recs = response.get_u32(0).unwrap_or(0);
         let db_info = if response.args.len() > 1 {
             DatabaseInfo {
-                name:            response.get_string(1).unwrap_or_default(),
-                flags:           DatabaseFlags::from_bits_truncate(
-                                    response.get_u16(2).unwrap_or(0)),
-                db_type:         FourCharCode::from_u32(
-                                    response.get_u32(3).unwrap_or(0)),
-                creator:         FourCharCode::from_u32(
-                                    response.get_u32(4).unwrap_or(0)),
-                card_no:         response.get_u8(5).unwrap_or(card_no),
-                db_id:           response.get_u32(6).unwrap_or(handle as u32),
-                created:         PalmDateTime::from_palm_time(
-                                    response.get_u32(7).unwrap_or(0)),
-                modified:        PalmDateTime::from_palm_time(
-                                    response.get_u32(8).unwrap_or(0)),
-                backup_date:     PalmDateTime::from_palm_time(
-                                    response.get_u32(9).unwrap_or(0)),
-                mod_num:         response.get_u32(10).unwrap_or(0),
-                total_bytes:     response.get_u32(11).unwrap_or(0),
-                data_bytes:      response.get_u32(12).unwrap_or(0),
-                num_records:     num_recs,
-                unique_id_seed:  response.get_u32(13).unwrap_or(0),
-                app_info_dirty:  false,
+                name: response.get_string(1).unwrap_or_default(),
+                flags: DatabaseFlags::from_bits_truncate(response.get_u16(2).unwrap_or(0)),
+                db_type: FourCharCode::from_u32(response.get_u32(3).unwrap_or(0)),
+                creator: FourCharCode::from_u32(response.get_u32(4).unwrap_or(0)),
+                card_no: response.get_u8(5).unwrap_or(card_no),
+                db_id: response.get_u32(6).unwrap_or(handle as u32),
+                created: PalmDateTime::from_palm_time(response.get_u32(7).unwrap_or(0)),
+                modified: PalmDateTime::from_palm_time(response.get_u32(8).unwrap_or(0)),
+                backup_date: PalmDateTime::from_palm_time(response.get_u32(9).unwrap_or(0)),
+                mod_num: response.get_u32(10).unwrap_or(0),
+                total_bytes: response.get_u32(11).unwrap_or(0),
+                data_bytes: response.get_u32(12).unwrap_or(0),
+                num_records: num_recs,
+                unique_id_seed: response.get_u32(13).unwrap_or(0),
+                app_info_dirty: false,
                 sort_info_dirty: false,
             }
         } else {
@@ -1337,7 +1343,7 @@ impl DlpClient {
                 ..Default::default()
             }
         };
-        
+
         Ok((num_recs, db_info))
     }
 
@@ -1346,7 +1352,14 @@ impl DlpClient {
     // ========================================================================
 
     /// Find a database by search criteria and return its info
-    pub async fn find_db_info(&self, card_no: CardNo, start: u32, name: &str, db_type: FourCharCode, creator: FourCharCode) -> Result<Option<DatabaseInfo>> {
+    pub async fn find_db_info(
+        &self,
+        card_no: CardNo,
+        start: u32,
+        name: &str,
+        db_type: FourCharCode,
+        creator: FourCharCode,
+    ) -> Result<Option<DatabaseInfo>> {
         let mut req = DlpRequest::new(DlpFunction::FindDB);
         req.add_u8(card_no);
         req.add_u32(start);
@@ -1364,27 +1377,23 @@ impl DlpClient {
         // The database info begins at arg 0 (local_id), name is the last arg
         let num_args = response.args.len();
         let db_info = DatabaseInfo {
-            name:            response.get_string(num_args - 1).unwrap_or_else(|_| name.to_string()),
-            flags:           DatabaseFlags::from_bits_truncate(
-                                response.get_u16(2).unwrap_or(0)),
-            db_type:         FourCharCode::from_u32(
-                                response.get_u32(3).unwrap_or(0)),
-            creator:         FourCharCode::from_u32(
-                                response.get_u32(4).unwrap_or(0)),
-            card_no:         response.get_u8(5).unwrap_or(card_no),
-            db_id:           response.get_u32(6).unwrap_or(0),
-            created:         PalmDateTime::from_palm_time(
-                                response.get_u32(7).unwrap_or(0)),
-            modified:        PalmDateTime::from_palm_time(
-                                response.get_u32(8).unwrap_or(0)),
-            backup_date:     PalmDateTime::from_palm_time(
-                                response.get_u32(9).unwrap_or(0)),
-            mod_num:         response.get_u32(10).unwrap_or(0),
-            total_bytes:     response.get_u32(11).unwrap_or(0),
-            data_bytes:      response.get_u32(12).unwrap_or(0),
-            num_records:     response.get_u16(13).unwrap_or(0) as u32,
-            unique_id_seed:  response.get_u32(14).unwrap_or(0),
-            app_info_dirty:  false,
+            name: response
+                .get_string(num_args - 1)
+                .unwrap_or_else(|_| name.to_string()),
+            flags: DatabaseFlags::from_bits_truncate(response.get_u16(2).unwrap_or(0)),
+            db_type: FourCharCode::from_u32(response.get_u32(3).unwrap_or(0)),
+            creator: FourCharCode::from_u32(response.get_u32(4).unwrap_or(0)),
+            card_no: response.get_u8(5).unwrap_or(card_no),
+            db_id: response.get_u32(6).unwrap_or(0),
+            created: PalmDateTime::from_palm_time(response.get_u32(7).unwrap_or(0)),
+            modified: PalmDateTime::from_palm_time(response.get_u32(8).unwrap_or(0)),
+            backup_date: PalmDateTime::from_palm_time(response.get_u32(9).unwrap_or(0)),
+            mod_num: response.get_u32(10).unwrap_or(0),
+            total_bytes: response.get_u32(11).unwrap_or(0),
+            data_bytes: response.get_u32(12).unwrap_or(0),
+            num_records: response.get_u16(13).unwrap_or(0) as u32,
+            unique_id_seed: response.get_u32(14).unwrap_or(0),
+            app_info_dirty: false,
             sort_info_dirty: false,
         };
         Ok(Some(db_info))
@@ -1414,7 +1423,7 @@ impl DlpClient {
     pub async fn call_application(&self, creator: u32, action: u32, data: &[u8]) -> Result<u32> {
         let mut req = DlpRequest::new(DlpFunction::CallApplication);
         req.add_u32(creator);
-        req.add_u32(0);           // type (0 = any)
+        req.add_u32(0); // type (0 = any)
         req.add_u32(action);
         req.add_u32(data.len() as u32);
         req.add_bytes(data);
@@ -1428,7 +1437,11 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::LoopBackTest);
         req.add_bytes(data);
         let response = self.send_request(&req).await?;
-        let result = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let result = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         Ok(result)
     }
 
@@ -1440,14 +1453,18 @@ impl DlpClient {
     pub async fn read_next_modified_rec(&self, handle: u8) -> Result<Option<Record>> {
         let mut req = DlpRequest::new(DlpFunction::ReadNextModifiedRec);
         req.add_u8(handle);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         if response.args.is_empty() {
             return Ok(None);
         }
-        
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
@@ -1459,7 +1476,7 @@ impl DlpClient {
             category: attrs.bits() & 0x0F,
             sort_key: None,
         };
-        
+
         Ok(Some(record))
     }
 
@@ -1468,10 +1485,14 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::ReadRecord);
         req.add_u8(handle);
         req.add_u32(index);
-        
+
         let response = self.send_request(&req).await?;
-        
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
@@ -1489,10 +1510,14 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::ReadRecord);
         req.add_u8(handle);
         req.add_u32(id);
-        
+
         let response = self.send_request(&req).await?;
-        
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(2).unwrap_or(0));
         Ok(Record {
             data,
@@ -1519,9 +1544,9 @@ impl DlpClient {
         req.add_u32(id);
         req.add_u8(category);
         req.add_bytes(data);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
@@ -1531,7 +1556,7 @@ impl DlpClient {
         req.add_u8(handle);
         req.add_u32(index);
         req.add_u8(0);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1548,9 +1573,9 @@ impl DlpClient {
         req.add_u8(handle);
         req.add_u32(start);
         req.add_u32(max);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let mut ids = Vec::new();
         for arg in &response.args {
             if arg.data.len() >= 4 {
@@ -1558,7 +1583,7 @@ impl DlpClient {
                 ids.push(id);
             }
         }
-        
+
         Ok(ids)
     }
 
@@ -1566,7 +1591,7 @@ impl DlpClient {
     pub async fn reset_record_index(&self, handle: u8) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::ResetRecordIndex);
         req.add_u8(handle);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1576,7 +1601,12 @@ impl DlpClient {
     // ========================================================================
 
     /// Move records from one category to another
-    pub async fn move_category(&self, handle: u8, from_category: u8, to_category: u8) -> Result<()> {
+    pub async fn move_category(
+        &self,
+        handle: u8,
+        from_category: u8,
+        to_category: u8,
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::MoveCategory);
         req.add_u8(handle);
         req.add_u8(from_category);
@@ -1586,7 +1616,11 @@ impl DlpClient {
     }
 
     /// Read next record in a specific category
-    pub async fn read_next_rec_in_category(&self, handle: u8, category: u8) -> Result<Option<Record>> {
+    pub async fn read_next_rec_in_category(
+        &self,
+        handle: u8,
+        category: u8,
+    ) -> Result<Option<Record>> {
         let mut req = DlpRequest::new(DlpFunction::ReadNextRecInCategory);
         req.add_u8(handle);
         req.add_u8(category);
@@ -1594,7 +1628,11 @@ impl DlpClient {
         if response.args.is_empty() {
             return Ok(None);
         }
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
@@ -1609,7 +1647,11 @@ impl DlpClient {
     }
 
     /// Read next modified record in a specific category
-    pub async fn read_next_modified_rec_in_category(&self, handle: u8, category: u8) -> Result<Option<Record>> {
+    pub async fn read_next_modified_rec_in_category(
+        &self,
+        handle: u8,
+        category: u8,
+    ) -> Result<Option<Record>> {
         let mut req = DlpRequest::new(DlpFunction::ReadNextModifiedRecInCategory);
         req.add_u8(handle);
         req.add_u8(category);
@@ -1617,7 +1659,11 @@ impl DlpClient {
         if response.args.is_empty() {
             return Ok(None);
         }
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let id = response.get_u32(1).unwrap_or(0);
         let index = response.get_u32(2).unwrap_or(0);
         let attrs = RecordFlags::from_bits_truncate(response.get_u8(3).unwrap_or(0));
@@ -1636,20 +1682,37 @@ impl DlpClient {
     // ========================================================================
 
     /// Read an application preference
-    pub async fn read_app_preference(&self, creator: FourCharCode, pref_id: u32, backup: bool, max_size: u32) -> Result<(Vec<u8>, i32)> {
+    pub async fn read_app_preference(
+        &self,
+        creator: FourCharCode,
+        pref_id: u32,
+        backup: bool,
+        max_size: u32,
+    ) -> Result<(Vec<u8>, i32)> {
         let mut req = DlpRequest::new(DlpFunction::ReadAppPreference);
         req.add_u32(creator.to_u32());
         req.add_u32(pref_id);
         req.add_u8(if backup { 1 } else { 0 });
         req.add_u32(max_size);
         let response = self.send_request(&req).await?;
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         let version = response.get_i32(1).unwrap_or(0);
         Ok((data, version))
     }
 
     /// Write an application preference
-    pub async fn write_app_preference(&self, creator: FourCharCode, pref_id: u32, backup: bool, version: i32, data: &[u8]) -> Result<()> {
+    pub async fn write_app_preference(
+        &self,
+        creator: FourCharCode,
+        pref_id: u32,
+        backup: bool,
+        version: i32,
+        data: &[u8],
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::WriteAppPreference);
         req.add_u32(creator.to_u32());
         req.add_u32(pref_id);
@@ -1668,7 +1731,11 @@ impl DlpClient {
     pub async fn read_net_sync_info(&self) -> Result<Vec<u8>> {
         let req = DlpRequest::new(DlpFunction::ReadNetSyncInfo);
         let response = self.send_request(&req).await?;
-        let data = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
+        let data = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
         Ok(data)
     }
 
@@ -1697,14 +1764,14 @@ impl DlpClient {
         if let Some(s) = size {
             req.add_u32(s);
         }
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let mut data = Vec::new();
         for arg in &response.args {
             data.extend_from_slice(&arg.data);
         }
-        
+
         Ok(data)
     }
 
@@ -1713,7 +1780,7 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::WriteAppBlock);
         req.add_u8(handle);
         req.add_bytes(data);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1731,14 +1798,14 @@ impl DlpClient {
         if let Some(s) = size {
             req.add_u32(s);
         }
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let mut data = Vec::new();
         for arg in &response.args {
             data.extend_from_slice(&arg.data);
         }
-        
+
         Ok(data)
     }
 
@@ -1747,7 +1814,7 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::WriteSortBlock);
         req.add_u8(handle);
         req.add_bytes(data);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1767,7 +1834,7 @@ impl DlpClient {
     pub async fn end_sync(&self, status: DlpEndStatus) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::EndOfSync);
         req.add_u8(status as u8);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1776,7 +1843,7 @@ impl DlpClient {
     pub async fn cleanup_database(&self, handle: u8) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::CleanUpDatabase);
         req.add_u8(handle);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1785,7 +1852,7 @@ impl DlpClient {
     pub async fn reset_sync_flags(&self, handle: u8) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::ResetSyncFlags);
         req.add_u8(handle);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1794,7 +1861,7 @@ impl DlpClient {
     pub async fn add_sync_log(&self, message: &str) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::AddSyncLogEntry);
         req.add_string(message);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1811,7 +1878,12 @@ impl DlpClient {
     // ========================================================================
 
     /// Format a VFS volume (destructive operation)
-    pub async fn vfs_volume_format(&self, vol_ref: VolumeRef, fs_lib_ref: u16, param: &[u8]) -> Result<()> {
+    pub async fn vfs_volume_format(
+        &self,
+        vol_ref: VolumeRef,
+        fs_lib_ref: u16,
+        param: &[u8],
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::VFSVolumeFormat);
         req.add_u16(vol_ref.value());
         req.add_u8(0); // fmtflags
@@ -1826,8 +1898,14 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSVolumeGetLabel);
         req.add_u16(vol_ref.value());
         let response = self.send_request(&req).await?;
-        let label_bytes = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
-        Ok(String::from_utf8_lossy(&label_bytes).trim_end_matches('\0').to_string())
+        let label_bytes = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
+        Ok(String::from_utf8_lossy(&label_bytes)
+            .trim_end_matches('\0')
+            .to_string())
     }
 
     /// Set VFS volume label
@@ -1857,7 +1935,7 @@ impl DlpClient {
     pub async fn vfs_volume_enumerate(&self) -> Result<Vec<VolumeRef>> {
         let req = DlpRequest::new(DlpFunction::VFSVolumeEnumerate);
         let response = self.send_request(&req).await?;
-        
+
         let mut refs = Vec::new();
         for arg in &response.args {
             if arg.data.len() >= 2 {
@@ -1865,7 +1943,7 @@ impl DlpClient {
                 refs.push(VolumeRef::new(vol_ref));
             }
         }
-        
+
         Ok(refs)
     }
 
@@ -1886,19 +1964,14 @@ impl DlpClient {
     }
 
     /// Open a file
-    pub async fn vfs_file_open(
-        &self,
-        vol_ref: VolumeRef,
-        path: &str,
-        mode: u8,
-    ) -> Result<FileRef> {
+    pub async fn vfs_file_open(&self, vol_ref: VolumeRef, path: &str, mode: u8) -> Result<FileRef> {
         let mut req = DlpRequest::new(DlpFunction::VFSFileOpen);
         req.add_u16(vol_ref.value());
         req.add_u8(mode);
         req.add_string(path);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let file_ref = response.get_u64(0).unwrap_or(0);
         Ok(FileRef(file_ref))
     }
@@ -1907,7 +1980,7 @@ impl DlpClient {
     pub async fn vfs_file_close(&self, file_ref: FileRef) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::VFSFileClose);
         req.add_u64(file_ref.0);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1917,14 +1990,14 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSFileRead);
         req.add_u64(file_ref.0);
         req.add_u32(size);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let mut data = Vec::new();
         for arg in &response.args {
             data.extend_from_slice(&arg.data);
         }
-        
+
         Ok(data)
     }
 
@@ -1933,9 +2006,9 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSFileWrite);
         req.add_u64(file_ref.0);
         req.add_bytes(data);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
@@ -1945,7 +2018,7 @@ impl DlpClient {
         req.add_u64(file_ref.0);
         req.add_i32(offset);
         req.add_u8(origin);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1954,9 +2027,9 @@ impl DlpClient {
     pub async fn vfs_file_size(&self, file_ref: FileRef) -> Result<u32> {
         let mut req = DlpRequest::new(DlpFunction::VFSFileSize);
         req.add_u64(file_ref.0);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         response.get_u32(0).map_err(|_| PilotError::DlpBufSize)
     }
 
@@ -1965,18 +2038,23 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSFileDelete);
         req.add_u16(vol_ref.value());
         req.add_string(path);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
 
     /// Rename a file
-    pub async fn vfs_file_rename(&self, vol_ref: VolumeRef, old_path: &str, new_path: &str) -> Result<()> {
+    pub async fn vfs_file_rename(
+        &self,
+        vol_ref: VolumeRef,
+        old_path: &str,
+        new_path: &str,
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::VFSFileRename);
         req.add_u16(vol_ref.value());
         req.add_string(old_path);
         req.add_string(new_path);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
@@ -1986,27 +2064,32 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSDirCreate);
         req.add_u16(vol_ref.value());
         req.add_string(path);
-        
+
         let _response = self.send_request(&req).await?;
         Ok(())
     }
 
     /// Enumerate directory entries
-    pub async fn vfs_dir_enum(&self, vol_ref: VolumeRef, path: &str, start: u32) -> Result<Vec<String>> {
+    pub async fn vfs_dir_enum(
+        &self,
+        vol_ref: VolumeRef,
+        path: &str,
+        start: u32,
+    ) -> Result<Vec<String>> {
         let mut req = DlpRequest::new(DlpFunction::VFSDirEntryEnumerate);
         req.add_u16(vol_ref.value());
         req.add_string(path);
         req.add_u32(start);
-        
+
         let response = self.send_request(&req).await?;
-        
+
         let mut entries = Vec::new();
         for arg in &response.args {
             if let Ok(name) = String::from_utf8(arg.data.clone()) {
                 entries.push(name.trim_end_matches('\0').to_string());
             }
         }
-        
+
         Ok(entries)
     }
 
@@ -2080,13 +2163,22 @@ impl DlpClient {
     // ========================================================================
 
     /// Send custom VFS control command
-    pub async fn vfs_custom_control(&self, vol_ref: VolumeRef, cmd: u16, input: &[u8]) -> Result<Vec<u8>> {
+    pub async fn vfs_custom_control(
+        &self,
+        vol_ref: VolumeRef,
+        cmd: u16,
+        input: &[u8],
+    ) -> Result<Vec<u8>> {
         let mut req = DlpRequest::new(DlpFunction::VFSCustomControl);
         req.add_u16(vol_ref.value());
         req.add_u16(cmd);
         req.add_bytes(input);
         let response = self.send_request(&req).await?;
-        Ok(response.args.first().map(|a| a.data.clone()).unwrap_or_default())
+        Ok(response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default())
     }
 
     /// Get VFS default directory
@@ -2095,12 +2187,22 @@ impl DlpClient {
         req.add_u16(vol_ref.value());
         req.add_string(name);
         let response = self.send_request(&req).await?;
-        let dir_bytes = response.args.first().map(|a| a.data.clone()).unwrap_or_default();
-        Ok(String::from_utf8_lossy(&dir_bytes).trim_end_matches('\0').to_string())
+        let dir_bytes = response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default();
+        Ok(String::from_utf8_lossy(&dir_bytes)
+            .trim_end_matches('\0')
+            .to_string())
     }
 
     /// Import a Palm database from a VFS file
-    pub async fn vfs_import_database_from_file(&self, vol_ref: VolumeRef, path: &str) -> Result<(u16, u32)> {
+    pub async fn vfs_import_database_from_file(
+        &self,
+        vol_ref: VolumeRef,
+        path: &str,
+    ) -> Result<(u16, u32)> {
         let mut req = DlpRequest::new(DlpFunction::VFSImportDatabaseFromFile);
         req.add_u16(vol_ref.value());
         req.add_string(path);
@@ -2111,7 +2213,13 @@ impl DlpClient {
     }
 
     /// Export a Palm database to a VFS file
-    pub async fn vfs_export_database_to_file(&self, vol_ref: VolumeRef, path: &str, card_no: u16, local_id: u32) -> Result<()> {
+    pub async fn vfs_export_database_to_file(
+        &self,
+        vol_ref: VolumeRef,
+        path: &str,
+        card_no: u16,
+        local_id: u32,
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::VFSExportDatabaseToFile);
         req.add_u16(vol_ref.value());
         req.add_string(path);
@@ -2137,7 +2245,11 @@ impl DlpClient {
         req.add_u16(vol_ref.value());
         req.add_string(path);
         let response = self.send_request(&req).await?;
-        Ok(response.args.first().map(|a| a.data.clone()).unwrap_or_default())
+        Ok(response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default())
     }
 
     /// Put a file to device via VFS
@@ -2204,7 +2316,14 @@ impl DlpClient {
     // ========================================================================
 
     /// Write record with extended size support (>64KB, DLP 1.4)
-    pub async fn write_record_ex(&self, handle: u8, flags: RecordFlags, rec_id: u32, category: u8, data: &[u8]) -> Result<u32> {
+    pub async fn write_record_ex(
+        &self,
+        handle: u8,
+        flags: RecordFlags,
+        rec_id: u32,
+        category: u8,
+        data: &[u8],
+    ) -> Result<u32> {
         let mut req = DlpRequest::new(DlpFunction::WriteRecordEx);
         req.add_u8(handle);
         req.add_u8(flags.bits());
@@ -2216,7 +2335,13 @@ impl DlpClient {
     }
 
     /// Write resource with extended size support (>64KB, DLP 1.4)
-    pub async fn write_resource_ex(&self, handle: u8, resource_type: u32, resource_id: u16, data: &[u8]) -> Result<()> {
+    pub async fn write_resource_ex(
+        &self,
+        handle: u8,
+        resource_type: u32,
+        resource_id: u16,
+        data: &[u8],
+    ) -> Result<()> {
         let mut req = DlpRequest::new(DlpFunction::WriteResourceEx);
         req.add_u8(handle);
         req.add_u32(resource_type);
@@ -2232,23 +2357,35 @@ impl DlpClient {
         req.add_u8(handle);
         req.add_u32(index);
         let response = self.send_request(&req).await?;
-        Ok(response.args.first().map(|a| a.data.clone()).unwrap_or_default())
+        Ok(response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default())
     }
 
     /// Read resource with extended size support (>64KB, DLP 1.4)
-    pub async fn read_resource_ex(&self, handle: u8, resource_type: u32, resource_id: u16) -> Result<Vec<u8>> {
+    pub async fn read_resource_ex(
+        &self,
+        handle: u8,
+        resource_type: u32,
+        resource_id: u16,
+    ) -> Result<Vec<u8>> {
         let mut req = DlpRequest::new(DlpFunction::ReadResourceEx);
         req.add_u8(handle);
         req.add_u32(resource_type);
         req.add_u16(resource_id);
         let response = self.send_request(&req).await?;
-        Ok(response.args.first().map(|a| a.data.clone()).unwrap_or_default())
+        Ok(response
+            .args
+            .first()
+            .map(|a| a.data.clone())
+            .unwrap_or_default())
     }
 
     // ========================================================================
     // Internal
     // ========================================================================
-
 }
 
 // ============================================================================
@@ -2260,15 +2397,13 @@ pub fn palm_date_to_system_time(palm_date: &[u8]) -> Result<SystemTime> {
     if palm_date.len() < 8 {
         return Err(PilotError::GenericSystem);
     }
-    
-    let seconds = u32::from_be_bytes([
-        palm_date[0], palm_date[1], palm_date[2], palm_date[3]
-    ]);
-    
+
+    let seconds = u32::from_be_bytes([palm_date[0], palm_date[1], palm_date[2], palm_date[3]]);
+
     // Palm epoch is Jan 1, 1904. Unix epoch is Jan 1, 1970.
     // Difference is 2082844800 seconds
     const PALM_EPOCH_OFFSET: i64 = 2082844800;
-    
+
     let unix_secs = (seconds as i64) - PALM_EPOCH_OFFSET;
     if unix_secs < 0 {
         return Err(PilotError::InvalidArgument);
@@ -2279,12 +2414,12 @@ pub fn palm_date_to_system_time(palm_date: &[u8]) -> Result<SystemTime> {
 /// Convert SystemTime to Palm OS date
 pub fn system_time_to_palm_date(time: SystemTime) -> [u8; 8] {
     const PALM_EPOCH_OFFSET: i64 = 2082844800;
-    
+
     let unix_secs = time
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
         .unwrap_or(0);
-    
+
     let palm_secs = (unix_secs + PALM_EPOCH_OFFSET) as u32;
     let mut date = [0u8; 8];
     date[0..4].copy_from_slice(&palm_secs.to_be_bytes());
@@ -2325,17 +2460,15 @@ mod tests {
     #[test]
     fn test_encode_decode_roundtrip_with_args() {
         let mut req = DlpRequest::new(DlpFunction::OpenDB);
-        req.add_u8(0);         // card_no
-        req.add_u8(0xC0);      // mode = ReadWrite
+        req.add_u8(0); // card_no
+        req.add_u8(0xC0); // mode = ReadWrite
         req.add_string("TestDB");
 
         let _encoded = req.encode();
         let response = build_response(
             DlpFunction::OpenDB,
             DlpErrorCode::NoError,
-            &[
-                DlpArg::new(0x20, 42u32.to_be_bytes().to_vec()),
-            ],
+            &[DlpArg::new(0x20, 42u32.to_be_bytes().to_vec())],
         );
 
         let decoded = DlpResponse::decode(&response).unwrap();
@@ -2348,7 +2481,11 @@ mod tests {
     #[test]
     fn test_encode_decode_empty_response() {
         // Valid response with 0 args, 0 body bytes
-        let response = vec![DlpFunction::GetSysDateTime as u8, 0, DlpErrorCode::NoError as u8];
+        let response = vec![
+            DlpFunction::GetSysDateTime as u8,
+            0,
+            DlpErrorCode::NoError as u8,
+        ];
         let decoded = DlpResponse::decode(&response).unwrap();
         assert_eq!(decoded.function, DlpFunction::GetSysDateTime as u8);
         assert_eq!(decoded.error, DlpErrorCode::NoError);
@@ -2382,13 +2519,17 @@ mod tests {
     fn test_encoded_size_matches_encode() {
         // Verify encoded_size() matches actual encode().len() for all formats
         let cases: Vec<DlpArg> = vec![
-            DlpArg::new(0x20, vec![0; 10]),     // tiny (10 ≤ 63)
-            DlpArg::new(0x20, vec![0; 300]),    // short (64 < 300 ≤ 16383)
+            DlpArg::new(0x20, vec![0; 10]),      // tiny (10 ≤ 63)
+            DlpArg::new(0x20, vec![0; 300]),     // short (64 < 300 ≤ 16383)
             DlpArg::new(0x20, vec![0; 0x10000]), // long (16384 < 65536)
         ];
         for arg in &cases {
-            assert_eq!(arg.encode().len(), arg.encoded_size(),
-                "encoded_size mismatch for data_len={}", arg.data.len());
+            assert_eq!(
+                arg.encode().len(),
+                arg.encoded_size(),
+                "encoded_size mismatch for data_len={}",
+                arg.data.len()
+            );
         }
     }
 
@@ -2417,11 +2558,7 @@ mod tests {
     fn test_response_decode_preserves_arg_count() {
         let data = vec![0xAB; 300]; // triggers short format (300 > 63)
         let arg = DlpArg::new(0x20, data.clone());
-        let response = build_response(
-            DlpFunction::ReadAppBlock,
-            DlpErrorCode::NoError,
-            &[arg],
-        );
+        let response = build_response(DlpFunction::ReadAppBlock, DlpErrorCode::NoError, &[arg]);
         let decoded = DlpResponse::decode(&response).unwrap();
         assert_eq!(decoded.args.len(), 1);
         assert_eq!(decoded.function, DlpFunction::ReadAppBlock as u8);
@@ -2564,7 +2701,11 @@ mod tests {
 
         // Long: 0xC0 marker in first byte (bits 7:6 = 11)
         let long = DlpArg::new(0x20, vec![0; 0x10000]);
-        assert_eq!(long.encode()[0] & 0xC0, 0xC0, "long format requires bits 7:6 both set");
+        assert_eq!(
+            long.encode()[0] & 0xC0,
+            0xC0,
+            "long format requires bits 7:6 both set"
+        );
 
         // Tiny: no 0x80 or 0x40 marker (data < 64, fits in 6 bits)
         let tiny = DlpArg::new(0x20, vec![0x01]);
@@ -2593,7 +2734,11 @@ mod tests {
         assert_eq!(arg_short_max.encode()[0] & 0xC0, 0x80);
 
         let arg_long = DlpArg::new(0x20, vec![0xAA; 16384]);
-        assert_eq!(arg_long.encode()[0] & 0xC0, 0xC0, "16384 bytes should use long format");
+        assert_eq!(
+            arg_long.encode()[0] & 0xC0,
+            0xC0,
+            "16384 bytes should use long format"
+        );
     }
 
     #[test]

@@ -61,9 +61,15 @@ impl VersaMailAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// Mail priority
@@ -120,11 +126,11 @@ impl VersaMailFolder {
     pub const Trash: Self = VersaMailFolder(4);
     pub const Archive: Self = VersaMailFolder(5);
     pub const Spam: Self = VersaMailFolder(6);
-    
+
     pub fn from_u8(val: u8) -> Self {
         VersaMailFolder(val)
     }
-    
+
     pub fn as_u8(&self) -> u8 {
         self.0
     }
@@ -279,8 +285,12 @@ impl VersaMailRecord {
 
         // Flags
         let mut flags = 0u8;
-        if !self.is_read { flags |= 0x01; }
-        if self.has_attachment { flags |= 0x02; }
+        if !self.is_read {
+            flags |= 0x01;
+        }
+        if self.has_attachment {
+            flags |= 0x02;
+        }
         data.push(flags);
 
         // Priority
@@ -398,13 +408,13 @@ pub mod constants {
 
     /// VersaMail database type
     pub const VERSA_MAIL_TYPE: FourCharCode = FourCharCode(0x566D6C6D); // "Vmlm"
-    
+
     /// VersaMail database creator
     pub const VERSA_MAIL_CREATOR: FourCharCode = FourCharCode(0x566D6C6D); // "Vmlm"
 
     /// Default IMAP port
     pub const DEFAULT_IMAP_PORT: u16 = 993;
-    
+
     /// Default SMTP port
     pub const DEFAULT_SMTP_PORT: u16 = 465;
 }
@@ -453,7 +463,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = VersaMailRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.from, "sender@example.com");
         assert_eq!(parsed.subject, "Test subject");
         assert!(parsed.is_read);

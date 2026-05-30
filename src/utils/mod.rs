@@ -2,35 +2,25 @@
 //!
 //! This module provides various utility functions used throughout the library.
 
-mod md5;
 mod debug;
-mod sys;
+mod md5;
 mod strings;
+mod sys;
 
+pub use debug::{dump_packet, hex_dump, DebugLevel, Logger};
 pub use md5::{md5, md5sum, Md5Hash};
-pub use debug::{hex_dump, dump_packet, DebugLevel, Logger};
 
 // Re-export system utilities
 pub use sys::{
-    timeout_to_duration,
-    timeout_to_system_time,
-    timeout_expired,
-    system_time_to_timeout,
-    get_pilot_rate as pilot_rate_env,
-    page_size,
-    page_align,
-    is_big_endian,
-    host_byte_order,
+    get_pilot_rate as pilot_rate_env, host_byte_order, is_big_endian, page_align, page_size,
+    system_time_to_timeout, timeout_expired, timeout_to_duration, timeout_to_system_time,
     SystemInfo,
 };
 
 // Re-export string utilities
 pub use strings::{
-    parse_pstring, pack_pstring,
-    parse_lpstring, pack_lpstring,
-    parse_string_list, pack_string_list,
-    pstring_size, string_list_size,
-    decode_palm_string,
+    decode_palm_string, pack_lpstring, pack_pstring, pack_string_list, parse_lpstring,
+    parse_pstring, parse_string_list, pstring_size, string_list_size,
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -75,7 +65,7 @@ pub fn get_pilot_rate() -> (i32, bool) {
 /// CRC16 implementation for Palm data
 pub fn crc16(data: &[u8]) -> u16 {
     let mut crc: u16 = 0;
-    
+
     for &byte in data {
         crc ^= (byte as u16) << 8;
         for _ in 0..8 {
@@ -86,14 +76,14 @@ pub fn crc16(data: &[u8]) -> u16 {
             }
         }
     }
-    
+
     crc
 }
 
 /// CRC32 implementation
 pub fn crc32(data: &[u8]) -> u32 {
     let mut crc: u32 = 0xFFFFFFFF;
-    
+
     for &byte in data {
         crc ^= byte as u32;
         for _ in 0..8 {
@@ -104,7 +94,7 @@ pub fn crc32(data: &[u8]) -> u32 {
             }
         }
     }
-    
+
     crc ^ 0xFFFFFFFF
 }
 
@@ -120,7 +110,10 @@ pub fn byte_to_hex(byte: u8) -> String {
 
 /// Convert bytes to hex string
 pub fn bytes_to_hex(data: &[u8]) -> String {
-    data.iter().map(|&b| byte_to_hex(b)).collect::<Vec<_>>().join(" ")
+    data.iter()
+        .map(|&b| byte_to_hex(b))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// Parse hex string to bytes
@@ -129,17 +122,16 @@ pub fn hex_to_bytes(hex: &str) -> Result<Vec<u8>, &'static str> {
     if !hex.len().is_multiple_of(2) {
         return Err("Hex string must have even length");
     }
-    
+
     let mut bytes = Vec::with_capacity(hex.len() / 2);
     let mut chars = hex.chars().peekable();
-    
+
     while let (Some(a), Some(b)) = (chars.next(), chars.next()) {
         let hex_byte = format!("{}{}", a, b);
-        let byte = u8::from_str_radix(&hex_byte, 16)
-            .map_err(|_| "Invalid hex byte")?;
+        let byte = u8::from_str_radix(&hex_byte, 16).map_err(|_| "Invalid hex byte")?;
         bytes.push(byte);
     }
-    
+
     Ok(bytes)
 }
 
@@ -152,7 +144,7 @@ pub fn align(value: usize, boundary: usize) -> usize {
 pub fn pad_to_align(data: Vec<u8>, boundary: usize) -> Vec<u8> {
     let aligned = align(data.len(), boundary);
     let padding = aligned - data.len();
-    
+
     if padding == 0 {
         data
     } else {
@@ -164,17 +156,31 @@ pub fn pad_to_align(data: Vec<u8>, boundary: usize) -> Vec<u8> {
 
 /// Minimum of two values
 pub fn min<T: PartialOrd>(a: T, b: T) -> T {
-    if a < b { a } else { b }
+    if a < b {
+        a
+    } else {
+        b
+    }
 }
 
 /// Maximum of two values
 pub fn max<T: PartialOrd>(a: T, b: T) -> T {
-    if a > b { a } else { b }
+    if a > b {
+        a
+    } else {
+        b
+    }
 }
 
 /// Clamp value to range
 pub fn clamp<T: PartialOrd>(value: T, min: T, max: T) -> T {
-    if value < min { min } else if value > max { max } else { value }
+    if value < min {
+        min
+    } else if value > max {
+        max
+    } else {
+        value
+    }
 }
 
 /// Swap two values
@@ -196,16 +202,16 @@ pub fn rotr(value: u32, n: u32) -> u32 {
 pub fn make_fourcc(s: &str) -> u32 {
     let bytes = s.as_bytes();
     let mut code: u32 = 0;
-    
+
     for (i, &byte) in bytes.iter().take(4).enumerate() {
         code |= (byte as u32) << (24 - i * 8);
     }
-    
+
     // Pad with spaces if shorter
     for i in bytes.len()..4 {
         code |= (b' ' as u32) << (24 - i * 8);
     }
-    
+
     code
 }
 
@@ -214,15 +220,21 @@ pub fn describe_record(data: &[u8]) -> String {
     if data.is_empty() {
         return "Empty record".to_string();
     }
-    
+
     // Try to detect record type
     let first_byte = data[0];
-    
+
     if data.len() >= 2 {
-        if let 0x00..=0x7F = data[0] { return format!("Address record ({} bytes)", data.len()) }
+        if let 0x00..=0x7F = data[0] {
+            return format!("Address record ({} bytes)", data.len());
+        }
     }
-    
-    format!("Unknown record type 0x{:02X} ({} bytes)", first_byte, data.len())
+
+    format!(
+        "Unknown record type 0x{:02X} ({} bytes)",
+        first_byte,
+        data.len()
+    )
 }
 
 /// Calculate record size (Palm format)

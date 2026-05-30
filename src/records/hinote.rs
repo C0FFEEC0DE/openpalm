@@ -39,9 +39,15 @@ impl HiNoteAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// HiNote languages
@@ -88,8 +94,7 @@ impl HiNoteLanguage {
 }
 
 /// Stroke data for handwriting
-#[derive(Debug, Clone)]
-#[derive(Default)]
+#[derive(Debug, Clone, Default)]
 pub struct Stroke {
     /// X coordinates
     pub x: Vec<i16>,
@@ -100,7 +105,6 @@ pub struct Stroke {
     /// Timestamp delta (ms since last point)
     pub timestamps: Vec<u16>,
 }
-
 
 /// Ink point
 #[derive(Debug, Clone, Copy)]
@@ -301,7 +305,7 @@ impl HiNoteRecord {
         if self.ink_data.len() < 4 {
             return None;
         }
-        
+
         // Simplified: return min/max from first 4 bytes
         let min_x = i16::from_be_bytes([self.ink_data[0], self.ink_data[1]]);
         let min_y = i16::from_be_bytes([self.ink_data[2], self.ink_data[3]]);
@@ -315,13 +319,13 @@ pub mod constants {
 
     /// HiNote database type
     pub const HINOTE_TYPE: FourCharCode = FourCharCode(0x48494E4F); // "HINO"
-    
+
     /// HiNote database creator
     pub const HINOTE_CREATOR: FourCharCode = FourCharCode(0x48494E4F); // "HINO"
 
     /// Maximum strokes
     pub const MAX_STROKES: usize = 1000;
-    
+
     /// Maximum points per stroke
     pub const MAX_POINTS_PER_STROKE: usize = 500;
 }
@@ -354,9 +358,19 @@ mod tests {
 
     #[test]
     fn test_ink_point_distance() {
-        let p1 = InkPoint { x: 0, y: 0, pressure: 0, timestamp: 0 };
-        let p2 = InkPoint { x: 3, y: 4, pressure: 0, timestamp: 100 };
-        
+        let p1 = InkPoint {
+            x: 0,
+            y: 0,
+            pressure: 0,
+            timestamp: 0,
+        };
+        let p2 = InkPoint {
+            x: 3,
+            y: 4,
+            pressure: 0,
+            timestamp: 100,
+        };
+
         // 3-4-5 triangle
         assert!((p1.distance_to(&p2) - 5.0).abs() < 0.001);
     }
@@ -370,7 +384,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = HiNoteRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.recognized_text, "Hello");
         assert_eq!(parsed.stroke_count, 5);
         assert_eq!(parsed.confidence, 85);

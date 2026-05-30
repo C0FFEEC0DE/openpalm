@@ -10,7 +10,10 @@ pub async fn info(socket: &mut PilotSocket) -> Result<()> {
     let rom_major = (sys.rom_version >> 24) & 0xFF;
     let rom_minor = (sys.rom_version >> 16) & 0xFF;
     println!("Product ID:  {}", sys.prod_id);
-    println!("ROM Version: {}.{} (0x{:08X})", rom_major, rom_minor, sys.rom_version);
+    println!(
+        "ROM Version: {}.{} (0x{:08X})",
+        rom_major, rom_minor, sys.rom_version
+    );
     println!("DLP Version: {}.{}", sys.dlp_major, sys.dlp_minor);
     println!("Username:    {}", user.username);
     println!("User ID:     {}", user.user_id);

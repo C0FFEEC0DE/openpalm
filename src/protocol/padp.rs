@@ -44,7 +44,7 @@ pub struct PadpFlags(u8);
 
 impl std::ops::BitOr for PadpFlags {
     type Output = Self;
-    
+
     fn bitor(self, rhs: Self) -> Self::Output {
         PadpFlags(self.0 | rhs.0)
     }
@@ -59,32 +59,32 @@ impl PadpFlags {
     pub const LONG: PadpFlags = PadpFlags(0x20);
     /// Memory error flag
     pub const MEM_ERROR: PadpFlags = PadpFlags(0x10);
-    
+
     /// Create empty flags
     pub fn empty() -> Self {
         PadpFlags(0)
     }
-    
+
     /// Create flags from bits
     pub fn from_bits(bits: u8) -> Option<Self> {
         Some(PadpFlags(bits))
     }
-    
+
     /// Get bits value
     pub fn bits(&self) -> u8 {
         self.0
     }
-    
+
     /// Check if contains a flag
     pub fn contains(&self, flag: PadpFlags) -> bool {
         (self.0 & flag.0) == flag.0
     }
-    
+
     /// Insert a flag
     pub fn insert(&mut self, flag: PadpFlags) {
         self.0 |= flag.0;
     }
-    
+
     /// Remove a flag
     pub fn remove(&mut self, flag: PadpFlags) {
         self.0 &= !flag.0;
@@ -117,7 +117,7 @@ impl PadpPacket {
             data,
         }
     }
-    
+
     /// Create an ACK packet
     pub fn ack(txid: u8) -> Self {
         Self {
@@ -128,7 +128,7 @@ impl PadpPacket {
             data: Vec::new(),
         }
     }
-    
+
     /// Create a tickle packet
     pub fn tickle(txid: u8) -> Self {
         Self {
@@ -139,7 +139,7 @@ impl PadpPacket {
             data: Vec::new(),
         }
     }
-    
+
     /// Create a wake packet
     pub fn wake() -> Self {
         Self {
@@ -150,20 +150,20 @@ impl PadpPacket {
             data: Vec::new(),
         }
     }
-    
+
     /// Encode packet to bytes
     pub fn encode(&self) -> Vec<u8> {
         let mut result = Vec::with_capacity(PADP_HEADER_LEN + self.data.len());
-        
+
         // Type byte
         result.push(self.packet_type as u8);
-        
+
         // Flags byte
         result.push(self.flags.bits());
-        
+
         // TXID
         result.push(self.txid);
-        
+
         // Size (use long format if needed)
         if self.flags.contains(PadpFlags::LONG) || self.size > 0xFFFF {
             result.push((self.size >> 24) as u8);
@@ -174,27 +174,25 @@ impl PadpPacket {
             result.push((self.size >> 8) as u8);
             result.push(self.size as u8);
         }
-        
+
         // Data
         result.extend_from_slice(&self.data);
-        
+
         result
     }
-    
+
     /// Decode packet from bytes
     pub fn decode(data: &[u8]) -> Result<Self> {
         if data.len() < PADP_HEADER_LEN {
             return Err(PilotError::ProtBadPacket);
         }
-        
-        let packet_type = PadpType::from_u8(data[0])
-            .ok_or(PilotError::ProtBadPacket)?;
-        
-        let flags = PadpFlags::from_bits(data[1])
-            .ok_or(PilotError::ProtBadPacket)?;
-        
+
+        let packet_type = PadpType::from_u8(data[0]).ok_or(PilotError::ProtBadPacket)?;
+
+        let flags = PadpFlags::from_bits(data[1]).ok_or(PilotError::ProtBadPacket)?;
+
         let txid = data[2];
-        
+
         let size = if flags.contains(PadpFlags::LONG) {
             if data.len() < PADP_HEADER_LONG_LEN {
                 return Err(PilotError::ProtBadPacket);
@@ -203,13 +201,13 @@ impl PadpPacket {
         } else {
             u16::from_be_bytes([data[3], data[4]]) as u32
         };
-        
+
         let packet_data = if flags.contains(PadpFlags::LONG) {
             &data[PADP_HEADER_LONG_LEN..]
         } else {
             &data[PADP_HEADER_LEN..]
         };
-        
+
         Ok(Self {
             packet_type,
             flags,
@@ -263,31 +261,31 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             stream: Some(stream),
         }
     }
-    
+
     /// Wake up the connection
     pub fn wake(&mut self) -> Result<()> {
-        let stream = self.stream.as_mut()
-            .ok_or(PilotError::SockDisconnected)?;
-        
+        let stream = self.stream.as_mut().ok_or(PilotError::SockDisconnected)?;
+
         let packet = PadpPacket::wake();
-        stream.write_all(&packet.encode())
+        stream
+            .write_all(&packet.encode())
             .map_err(|_| PilotError::SockIo)?;
         stream.flush().map_err(|_| PilotError::SockIo)?;
-        
+
         self.txid = 0xFF;
         Ok(())
     }
-    
+
     /// Send data with reliable delivery
     pub fn send(&mut self, data: &[u8]) -> Result<usize> {
         let total_len = data.len();
         let mut offset = 0;
         let mut first = true;
-        
+
         while offset < data.len() {
             let chunk_size = std::cmp::min(PADP_MTU, data.len() - offset);
             let is_last = offset + chunk_size >= data.len();
-            
+
             let mut flags = PadpFlags::empty();
             if first {
                 flags.insert(PadpFlags::FIRST);
@@ -298,29 +296,33 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             if self.use_long_format {
                 flags.insert(PadpFlags::LONG);
             }
-            
-            let size_hint = if first { total_len as u32 } else { chunk_size as u32 };
-            
+
+            let size_hint = if first {
+                total_len as u32
+            } else {
+                chunk_size as u32
+            };
+
             let packet = PadpPacket::new_data(
                 self.txid,
                 flags,
                 size_hint,
                 data[offset..offset + chunk_size].to_vec(),
             );
-            
+
             // Send packet
             {
-                let stream = self.stream.as_mut()
-                    .ok_or(PilotError::SockDisconnected)?;
-                stream.write_all(&packet.encode())
+                let stream = self.stream.as_mut().ok_or(PilotError::SockDisconnected)?;
+                stream
+                    .write_all(&packet.encode())
                     .map_err(|_| PilotError::SockIo)?;
                 stream.flush().map_err(|_| PilotError::SockIo)?;
             }
-            
+
             // Wait for ACK
             if packet.packet_type != PadpType::Tick {
                 let response = self.receive_packet()?;
-                
+
                 match response.packet_type {
                     PadpType::Ack if response.txid == self.txid => {
                         // Success
@@ -337,28 +339,28 @@ impl<S: Read + Write + Send> PadpConnection<S> {
                     }
                 }
             }
-            
+
             offset += chunk_size;
             first = false;
             self.txid = self.next_txid;
             self.next_txid = self.next_txid.wrapping_add(1);
         }
-        
+
         Ok(total_len)
     }
-    
+
     /// Receive a packet
     fn receive_packet(&mut self) -> Result<PadpPacket> {
         use std::io::Read;
-        
-        let stream = self.stream.as_mut()
-            .ok_or(PilotError::SockDisconnected)?;
-        
+
+        let stream = self.stream.as_mut().ok_or(PilotError::SockDisconnected)?;
+
         // Read base header (5 bytes: type + flags + txid + size_short)
         let mut header = [0u8; PADP_HEADER_LEN + 2];
         let mut pos = 0;
         while pos < PADP_HEADER_LEN {
-            let n = stream.read(&mut header[pos..PADP_HEADER_LEN])
+            let n = stream
+                .read(&mut header[pos..PADP_HEADER_LEN])
                 .map_err(|_| PilotError::SockIo)?;
             if n == 0 {
                 return Err(PilotError::SockDisconnected);
@@ -367,8 +369,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
         }
 
         // Check LONG flag and read extended size if needed
-        let flags = PadpFlags::from_bits(header[1])
-            .ok_or(PilotError::ProtBadPacket)?;
+        let flags = PadpFlags::from_bits(header[1]).ok_or(PilotError::ProtBadPacket)?;
         let header_len = if flags.contains(PadpFlags::LONG) {
             PADP_HEADER_LEN + 2
         } else {
@@ -376,43 +377,44 @@ impl<S: Read + Write + Send> PadpConnection<S> {
         };
 
         while pos < header_len {
-            let n = stream.read(&mut header[pos..header_len])
+            let n = stream
+                .read(&mut header[pos..header_len])
                 .map_err(|_| PilotError::SockIo)?;
             if n == 0 {
                 return Err(PilotError::SockDisconnected);
             }
             pos += n;
         }
-        
-        let packet_type = PadpType::from_u8(header[0])
-            .ok_or(PilotError::ProtBadPacket)?;
+
+        let packet_type = PadpType::from_u8(header[0]).ok_or(PilotError::ProtBadPacket)?;
 
         let txid = header[2];
-        
+
         let size = if flags.contains(PadpFlags::LONG) {
             u32::from_be_bytes([header[3], header[4], header[5], header[6]])
         } else {
             u16::from_be_bytes([header[3], header[4]]) as u32
         };
-        
+
         // Read data
         let data_len = if flags.contains(PadpFlags::LONG) {
             size as usize
         } else {
             std::cmp::min(size as usize, PADP_MTU)
         };
-        
+
         let mut data = vec![0u8; data_len];
         let mut received = 0;
         while received < data_len {
-            let n = stream.read(&mut data[received..])
+            let n = stream
+                .read(&mut data[received..])
                 .map_err(|_| PilotError::SockIo)?;
             if n == 0 {
                 return Err(PilotError::SockDisconnected);
             }
             received += n;
         }
-        
+
         let packet = PadpPacket {
             packet_type,
             flags,
@@ -420,23 +422,24 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             size,
             data,
         };
-        
+
         // Send ACK for data packets
         if packet.packet_type == PadpType::Data {
             let ack = PadpPacket::ack(packet.txid);
-            stream.write_all(&ack.encode())
+            stream
+                .write_all(&ack.encode())
                 .map_err(|_| PilotError::SockIo)?;
             stream.flush().map_err(|_| PilotError::SockIo)?;
         }
-        
+
         Ok(packet)
     }
-    
+
     /// Receive data (assembles fragments)
     pub fn receive(&mut self, buffer: &mut [u8]) -> Result<usize> {
         loop {
             let packet = self.receive_packet()?;
-            
+
             match packet.packet_type {
                 PadpType::Data => {
                     // Check if this is a new transaction
@@ -444,15 +447,15 @@ impl<S: Read + Write + Send> PadpConnection<S> {
                         self.recv_buffer.clear();
                         self.recv_txid = packet.txid;
                     }
-                    
+
                     // Verify TXID matches
                     if packet.txid != self.recv_txid {
                         continue;
                     }
-                    
+
                     // Append data
                     self.recv_buffer.extend_from_slice(&packet.data);
-                    
+
                     // Check if complete
                     if packet.flags.contains(PadpFlags::LAST) {
                         let len = std::cmp::min(buffer.len(), self.recv_buffer.len());
@@ -471,22 +474,22 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             }
         }
     }
-    
+
     /// Get connection state
     pub fn state(&self) -> PadpState {
         self.state
     }
-    
+
     /// Check if connected
     pub fn is_connected(&self) -> bool {
         self.stream.is_some()
     }
-    
+
     /// Set long format usage
     pub fn set_long_format(&mut self, enabled: bool) {
         self.use_long_format = enabled;
     }
-    
+
     /// Freeze/unfreeze TXID
     pub fn set_freeze_txid(&mut self, freeze: bool) {
         self.freeze_txid = freeze;
@@ -559,10 +562,10 @@ mod tests {
             4,
             vec![0x01, 0x02, 0x03, 0x04],
         );
-        
+
         let encoded = original.encode();
         let decoded = PadpPacket::decode(&encoded).unwrap();
-        
+
         assert_eq!(decoded.packet_type, PadpType::Data);
         assert_eq!(decoded.txid, 0x10);
         assert!(decoded.flags.contains(PadpFlags::FIRST));
@@ -573,21 +576,12 @@ mod tests {
     #[test]
     fn test_recv_buffer_cleared_after_last() {
         // Packet 1: FIRST + LAST, txid=1, data="hello"
-        let pkt1 = PadpPacket::new_data(
-            1,
-            PadpFlags::FIRST | PadpFlags::LAST,
-            5,
-            b"hello".to_vec(),
-        );
+        let pkt1 =
+            PadpPacket::new_data(1, PadpFlags::FIRST | PadpFlags::LAST, 5, b"hello".to_vec());
 
         // Packet 2: LAST (no FIRST), txid=1, data="world"
         // This simulates a stale trailing packet or retransmit.
-        let pkt2 = PadpPacket::new_data(
-            1,
-            PadpFlags::LAST,
-            5,
-            b"world".to_vec(),
-        );
+        let pkt2 = PadpPacket::new_data(1, PadpFlags::LAST, 5, b"world".to_vec());
 
         let stream = MockStream::new([pkt1.encode(), pkt2.encode()].concat());
         let mut padp = PadpConnection::new(stream);

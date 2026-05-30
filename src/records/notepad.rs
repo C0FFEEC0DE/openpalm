@@ -31,9 +31,15 @@ impl NotepadAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 impl Default for NotepadRecord {
@@ -74,7 +80,7 @@ impl NotepadRecord {
         offset += 2;
 
         // Parse text portion
-        let text_len = if data.len() > offset { 
+        let text_len = if data.len() > offset {
             let len = data[offset] as usize;
             if offset + len + 1 > data.len() {
                 data.len() - offset - 1
@@ -177,13 +183,13 @@ pub mod constants {
 
     /// Notepad database type
     pub const NOTEPAD_TYPE: FourCharCode = FourCharCode(0x4E6F7465);
-    
+
     /// Notepad database creator
     pub const NOTEPAD_CREATOR: FourCharCode = FourCharCode(0x4E6F7465);
 
     /// Maximum note length
     pub const MAX_NOTE_LENGTH: usize = 4096;
-    
+
     /// Maximum stroke count
     pub const MAX_STROKES: usize = 1000;
 }
@@ -207,7 +213,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = NotepadRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.note_text, "Test note");
     }
 

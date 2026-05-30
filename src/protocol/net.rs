@@ -9,21 +9,21 @@ use crate::error::{PilotError, Result};
 pub mod constants {
     /// NET protocol version
     pub const NET_VERSION: u8 = 1;
-    
+
     /// Maximum packet size
     pub const NET_MAX_PACKET: usize = 65535;
-    
+
     /// Default timeout (ms)
     pub const NET_TIMEOUT: u32 = 5000;
-    
+
     /// Maximum retries
     pub const NET_MAX_RETRIES: u8 = 3;
-    
+
     /// Protocol types
     pub const NET_PROTO_TCP: u8 = 0x06;
     pub const NET_PROTO_UDP: u8 = 0x11;
     pub const NET_PROTO_ICMP: u8 = 0x01;
-    
+
     /// Port numbers
     pub const PORT_HANDSYNC: u16 = 14237;
     pub const PORT_DEBUG: u16 = 14238;
@@ -110,16 +110,16 @@ impl NetPacket {
     /// Pack to bytes
     pub fn pack(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
-        
+
         // Header: command (1) + conn_id (1) + seq (2) + length (2)
         bytes.push(self.command as u8);
         bytes.push(self.conn_id);
         bytes.extend_from_slice(&self.seq.to_be_bytes());
         bytes.extend_from_slice(&((self.data.len() as u16).to_be_bytes()));
-        
+
         // Data
         bytes.extend_from_slice(&self.data);
-        
+
         bytes
     }
 
@@ -131,7 +131,7 @@ impl NetPacket {
 
         let command = NetCommand::from_u8(data[0])
             .ok_or_else(|| PilotError::InvalidData("Invalid NET command".into()))?;
-        
+
         let conn_id = data[1];
         let seq = u16::from_be_bytes([data[2], data[3]]);
         let length = u16::from_be_bytes([data[4], data[5]]);
@@ -157,7 +157,7 @@ impl NetPacket {
         data.push(protocol);
         data.extend_from_slice(&local_port.to_be_bytes());
         data.extend_from_slice(&remote_port.to_be_bytes());
-        
+
         let mut packet = Self::new(NetCommand::Open, conn_id, seq);
         packet.data = data;
         packet.length = packet.data.len() as u16;
@@ -290,13 +290,18 @@ impl NetHandler {
     }
 
     /// Create connection
-    pub fn create_connection(&mut self, protocol: u8, local_port: u16, remote_port: u16) -> &mut NetConnection {
+    pub fn create_connection(
+        &mut self,
+        protocol: u8,
+        local_port: u16,
+        remote_port: u16,
+    ) -> &mut NetConnection {
         let id = self.next_id;
         self.next_id = self.next_id.wrapping_add(1);
-        
+
         let conn = NetConnection::new(id, protocol, local_port, remote_port);
         self.connections.push(conn);
-        
+
         self.connections.last_mut().unwrap()
     }
 
@@ -324,10 +329,10 @@ impl NetHandler {
                     let protocol = packet.data[0];
                     let local_port = u16::from_be_bytes([packet.data[1], packet.data[2]]);
                     let remote_port = u16::from_be_bytes([packet.data[3], packet.data[4]]);
-                    
+
                     let conn = self.create_connection(protocol, local_port, remote_port);
                     conn.state = NetState::Open;
-                    
+
                     // Return response
                     let mut resp = NetPacket::new(NetCommand::OpenResp, conn.id, packet.seq);
                     resp.data = vec![0x00]; // Success
@@ -345,7 +350,7 @@ impl NetHandler {
                 if let Some(conn) = self.get_connection_mut(packet.conn_id) {
                     conn.bytes_sent += packet.length as u32;
                     conn.next_seq();
-                    
+
                     let mut resp = NetPacket::new(NetCommand::SendResp, conn.id, packet.seq);
                     resp.data = vec![0x00];
                     resp.length = 1;
@@ -356,7 +361,7 @@ impl NetHandler {
             NetCommand::Receive => {
                 if let Some(conn) = self.get_connection_mut(packet.conn_id) {
                     conn.next_seq();
-                    
+
                     let mut resp = NetPacket::new(NetCommand::ReceiveResp, conn.id, packet.seq);
                     resp.data = Vec::new(); // No data for now
                     return Some(resp);
@@ -368,10 +373,13 @@ impl NetHandler {
                 if let Some(conn) = self.get_connection(packet.conn_id) {
                     resp.data = vec![
                         conn.state as u8,
-                        0, 0, 0, // padding
+                        0,
+                        0,
+                        0, // padding
                     ];
                     resp.data.extend_from_slice(&conn.bytes_sent.to_be_bytes());
-                    resp.data.extend_from_slice(&conn.bytes_received.to_be_bytes());
+                    resp.data
+                        .extend_from_slice(&conn.bytes_received.to_be_bytes());
                 }
                 Some(resp)
             }
@@ -395,7 +403,7 @@ mod tests {
         let packet = NetPacket::open(1, 100, constants::NET_PROTO_TCP, 1234, 80);
         let bytes = packet.pack();
         let parsed = NetPacket::parse(&bytes).unwrap();
-        
+
         assert_eq!(parsed.command, NetCommand::Open);
         assert_eq!(parsed.conn_id, 1);
         assert_eq!(parsed.seq, 100);
@@ -405,7 +413,7 @@ mod tests {
     fn test_net_connection() {
         let mut conn = NetConnection::new(1, constants::NET_PROTO_TCP, 1234, 80);
         assert_eq!(conn.state, NetState::Closed);
-        
+
         conn.state = NetState::Open;
         assert_eq!(conn.next_seq(), 1);
         assert_eq!(conn.next_seq(), 2);
@@ -414,10 +422,10 @@ mod tests {
     #[test]
     fn test_net_handler() {
         let mut handler = NetHandler::new();
-        
+
         let conn = handler.create_connection(constants::NET_PROTO_TCP, 1234, 80);
         assert_eq!(conn.id, 1);
-        
+
         handler.close_connection(1);
         assert!(handler.get_connection(1).is_none());
     }

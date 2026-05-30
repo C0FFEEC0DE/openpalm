@@ -3,8 +3,7 @@
 use std::fmt;
 
 /// A four-character code used in Palm OS for types and creators
-#[derive(Clone, Copy, PartialEq, Eq, Hash)]
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Default)]
 pub struct FourCharCode(pub u32);
 
 impl FourCharCode {
@@ -12,10 +11,10 @@ impl FourCharCode {
     /// The bytes are stored in big-endian format (first byte is most significant)
     pub fn from_bytes(bytes: [u8; 4]) -> Self {
         FourCharCode::from_u32(
-            ((bytes[0] as u32) << 24) |
-            ((bytes[1] as u32) << 16) |
-            ((bytes[2] as u32) << 8) |
-            (bytes[3] as u32)
+            ((bytes[0] as u32) << 24)
+                | ((bytes[1] as u32) << 16)
+                | ((bytes[2] as u32) << 8)
+                | (bytes[3] as u32),
         )
     }
 
@@ -62,7 +61,6 @@ impl FourCharCode {
         Some(FourCharCode::from_bytes(bytes))
     }
 }
-
 
 impl fmt::Debug for FourCharCode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

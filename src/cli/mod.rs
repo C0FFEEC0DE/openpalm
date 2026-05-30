@@ -1,7 +1,7 @@
 //! OpenPalm CLI shared helpers
 
-pub mod db;
 pub mod datetime;
+pub mod db;
 pub mod device;
 pub mod record;
 pub mod resource;
@@ -40,13 +40,11 @@ pub async fn connect(port: Option<&str>, host: Option<&str>) -> Result<PilotSock
 }
 
 /// Execute a command with a connected socket, ensuring disconnect is always called
-pub async fn with_connection<F>(
-    port: Option<&str>,
-    host: Option<&str>,
-    f: F,
-) -> Result<()>
+pub async fn with_connection<F>(port: Option<&str>, host: Option<&str>, f: F) -> Result<()>
 where
-    F: for<'a> FnOnce(&'a mut PilotSocket) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + 'a>>,
+    F: for<'a> FnOnce(
+        &'a mut PilotSocket,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<()>> + 'a>>,
 {
     let mut socket = connect(port, host).await?;
     let result = f(&mut socket).await;
@@ -56,15 +54,25 @@ where
 
 /// Print simple aligned table
 pub fn print_table(headers: &[&str], rows: &[Vec<String>]) {
-    let widths: Vec<usize> = headers.iter().enumerate().map(|(i, h)| {
-        let max = rows.iter().map(|r| r.get(i).map(|s| s.len()).unwrap_or(0)).max().unwrap_or(0);
-        h.len().max(max).max(8)
-    }).collect();
+    let widths: Vec<usize> = headers
+        .iter()
+        .enumerate()
+        .map(|(i, h)| {
+            let max = rows
+                .iter()
+                .map(|r| r.get(i).map(|s| s.len()).unwrap_or(0))
+                .max()
+                .unwrap_or(0);
+            h.len().max(max).max(8)
+        })
+        .collect();
     for (i, h) in headers.iter().enumerate() {
         print!("{:w$}  ", h, w = widths[i]);
     }
     println!();
-    for w in &widths { print!("{:-<w$}  ", "", w = w); }
+    for w in &widths {
+        print!("{:-<w$}  ", "", w = w);
+    }
     println!();
     for row in rows {
         for (i, cell) in row.iter().enumerate() {

@@ -3,14 +3,18 @@
 //! This module provides fundamental types used throughout the library.
 
 pub mod buffer;
-pub mod fourcc;
 pub mod date;
 pub mod flags;
+pub mod fourcc;
 
 pub use buffer::PiBuffer;
-pub use fourcc::{FourCharCode, DatabaseType, DatabaseCreator};
-pub use date::{PalmDateTime, to_palm_time, from_palm_time, PALM_EPOCH_TO_UNIX_EPOCH, PALM_UNDEFINED_DATE};
-pub use flags::{RecordFlags, DatabaseFlags, OpenMode, VfsOpenMode, VfsFileAttributes, VfsVolumeAttributes};
+pub use date::{
+    from_palm_time, to_palm_time, PalmDateTime, PALM_EPOCH_TO_UNIX_EPOCH, PALM_UNDEFINED_DATE,
+};
+pub use flags::{
+    DatabaseFlags, OpenMode, RecordFlags, VfsFileAttributes, VfsOpenMode, VfsVolumeAttributes,
+};
+pub use fourcc::{DatabaseCreator, DatabaseType, FourCharCode};
 
 /// Maximum database name length (32 characters + null terminator)
 pub const MAX_DBP_NAME_LEN: usize = 34;

@@ -31,15 +31,15 @@ pub fn parse_pstring(data: &[u8], offset: usize) -> Result<(String, usize)> {
     if offset >= data.len() {
         return Err(PilotError::InvalidData("Offset beyond data length".into()));
     }
-    
+
     let mut end = offset;
     while end < data.len() && data[end] != 0 {
         end += 1;
     }
-    
+
     let s = String::from_utf8_lossy(&data[offset..end]).to_string();
     let new_offset = if end < data.len() { end + 1 } else { end };
-    
+
     Ok((s, new_offset))
 }
 
@@ -55,13 +55,15 @@ pub fn parse_lpstring(data: &[u8], offset: usize) -> Result<(String, usize)> {
     if offset >= data.len() {
         return Err(PilotError::InvalidData("Offset beyond data length".into()));
     }
-    
+
     let len = data[offset] as usize;
-    
+
     if offset + 1 + len > data.len() {
-        return Err(PilotError::InvalidData("Pascal string exceeds buffer".into()));
+        return Err(PilotError::InvalidData(
+            "Pascal string exceeds buffer".into(),
+        ));
     }
-    
+
     let s = String::from_utf8_lossy(&data[offset + 1..offset + 1 + len]).to_string();
     Ok((s, offset + 1 + len))
 }
@@ -89,7 +91,7 @@ pub fn pack_pstring(s: &str) -> Vec<u8> {
 pub fn pack_lpstring(s: &str) -> Vec<u8> {
     let bytes = s.as_bytes();
     let len = bytes.len().min(255) as u8;
-    
+
     let mut result = Vec::with_capacity(1 + bytes.len());
     result.push(len);
     result.extend_from_slice(bytes);
@@ -105,7 +107,11 @@ pub fn pack_lpstring(s: &str) -> Vec<u8> {
 ///
 /// # Returns
 /// * `Ok(Vec<String>)` - The parsed strings
-pub fn parse_string_list(data: &[u8], offset: usize, max_count: usize) -> Result<(Vec<String>, usize)> {
+pub fn parse_string_list(
+    data: &[u8],
+    offset: usize,
+    max_count: usize,
+) -> Result<(Vec<String>, usize)> {
     let mut strings = Vec::new();
     let mut current_offset = offset;
 
@@ -140,15 +146,15 @@ pub fn parse_string_list(data: &[u8], offset: usize, max_count: usize) -> Result
 /// * `Vec<u8>` - The packed strings with double null terminator
 pub fn pack_string_list(strings: &[String]) -> Vec<u8> {
     let mut bytes = Vec::new();
-    
+
     for s in strings {
         bytes.extend(pack_pstring(s));
     }
-    
+
     // Double null terminator to mark end of list
     bytes.push(0);
     bytes.push(0);
-    
+
     bytes
 }
 
@@ -172,7 +178,7 @@ mod tests {
         let (s, offset) = parse_pstring(data, 0).unwrap();
         assert_eq!(s, "Hello");
         assert_eq!(offset, 6);
-        
+
         let (s2, offset2) = parse_pstring(data, offset).unwrap();
         assert_eq!(s2, "World");
         assert_eq!(offset2, 12);
@@ -181,7 +187,7 @@ mod tests {
     #[test]
     fn test_pack_pstring() {
         let packed = pack_pstring("Test");
-        assert_eq!(packed, b"Test\0");  // "Test" + null terminator
+        assert_eq!(packed, b"Test\0"); // "Test" + null terminator
         assert_eq!(packed.len(), 5);
     }
 

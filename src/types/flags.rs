@@ -158,12 +158,12 @@ impl OpenMode {
     pub fn read() -> Self {
         OpenMode::READ
     }
-    
+
     /// Write-only mode
     pub fn write() -> Self {
         OpenMode::WRITE
     }
-    
+
     /// Read and write mode
     pub fn read_write() -> Self {
         OpenMode::READ.union(OpenMode::WRITE)
@@ -236,7 +236,9 @@ impl VfsOpenMode {
 
     /// Write-only mode (with exclusive and create)
     pub fn write_only() -> Self {
-        VfsOpenMode::WRITE.union(VfsOpenMode::EXCLUSIVE).union(VfsOpenMode::CREATE)
+        VfsOpenMode::WRITE
+            .union(VfsOpenMode::EXCLUSIVE)
+            .union(VfsOpenMode::CREATE)
     }
 
     /// Read-write mode
@@ -370,7 +372,7 @@ mod tests {
         assert!(flags.is_deleted());
         assert!(flags.is_dirty());
         assert!(!flags.is_secret());
-        
+
         assert_eq!(flags.bits(), 0xC0);
     }
 
@@ -396,7 +398,7 @@ mod tests {
         let mode = OpenMode::read_write();
         assert!(mode.can_read());
         assert!(mode.can_write());
-        
+
         let read_only = OpenMode::READ;
         assert!(read_only.can_read());
         assert!(!read_only.can_write());
@@ -414,7 +416,7 @@ mod tests {
         let attrs = VfsFileAttributes::DIRECTORY;
         assert!(attrs.is_directory());
         assert!(!attrs.is_file());
-        
+
         let file_attrs = VfsFileAttributes::READ_ONLY | VfsFileAttributes::ARCHIVE;
         assert!(file_attrs.is_file());
     }

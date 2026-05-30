@@ -67,7 +67,7 @@ impl Serial {
             port: None,
         }
     }
-    
+
     /// Create from a port name (uses default parameters)
     pub fn from_port(port: &str) -> Self {
         Self::new(SerialParams {
@@ -75,11 +75,11 @@ impl Serial {
             ..Default::default()
         })
     }
-    
+
     /// Open the serial port
     pub fn connect(&mut self) -> Result<()> {
         use serialport::{DataBits, FlowControl, Parity, StopBits};
-        
+
         let port = serialport::new(&self.port_name, self.baud_rate)
             .data_bits(DataBits::Eight)
             .parity(Parity::None)
@@ -94,63 +94,61 @@ impl Serial {
             })
             .open()
             .map_err(|_e| PilotError::SockIo)?;
-        
+
         self.port = Some(port);
         Ok(())
     }
-    
+
     /// Close the serial port
     pub fn disconnect(&mut self) -> Result<()> {
         self.port = None;
         Ok(())
     }
-    
+
     /// Check if connected
     pub fn is_connected(&self) -> bool {
         self.port.is_some()
     }
-    
+
     /// Set the baud rate
     pub fn set_baud_rate(&mut self, baud: u32) -> Result<()> {
         self.baud_rate = baud;
-        
+
         if let Some(ref mut port) = self.port {
-            port.set_baud_rate(baud)
-                .map_err(|_| PilotError::SockIo)?;
+            port.set_baud_rate(baud).map_err(|_| PilotError::SockIo)?;
         }
-        
+
         Ok(())
     }
-    
+
     /// Get the current baud rate
     pub fn baud_rate(&self) -> u32 {
         self.baud_rate
     }
-    
+
     /// Set timeout
     pub fn set_timeout(&mut self, timeout: Duration) {
         self.timeout = timeout;
-        
+
         if let Some(ref mut port) = self.port {
             let _ = port.set_timeout(timeout);
         }
     }
-    
+
     /// Get available ports
     pub fn available_ports() -> std::io::Result<Vec<String>> {
         serialport::available_ports()
             .map(|ports| {
-                ports.into_iter()
-                    .map(|p| {
-                        match p.port_type {
-                            SerialPortType::UsbPort(_) => {
-                                format!("{} (USB)", p.port_name)
-                            }
-                            SerialPortType::BluetoothPort => {
-                                format!("{} (Bluetooth)", p.port_name)
-                            }
-                            _ => p.port_name
+                ports
+                    .into_iter()
+                    .map(|p| match p.port_type {
+                        SerialPortType::UsbPort(_) => {
+                            format!("{} (USB)", p.port_name)
                         }
+                        SerialPortType::BluetoothPort => {
+                            format!("{} (Bluetooth)", p.port_name)
+                        }
+                        _ => p.port_name,
                     })
                     .collect()
             })
@@ -165,7 +163,7 @@ impl Read for Serial {
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
-                "serial port not connected"
+                "serial port not connected",
             ))
         }
     }
@@ -178,18 +176,18 @@ impl Write for Serial {
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
-                "serial port not connected"
+                "serial port not connected",
             ))
         }
     }
-    
+
     fn flush(&mut self) -> std::io::Result<()> {
         if let Some(ref mut port) = self.port {
             port.flush()
         } else {
             Err(std::io::Error::new(
                 std::io::ErrorKind::NotConnected,
-                "serial port not connected"
+                "serial port not connected",
             ))
         }
     }

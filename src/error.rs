@@ -136,41 +136,41 @@ impl PilotError {
     /// Get a category code for this error
     pub fn category(&self) -> i32 {
         match self {
-            PilotError::ProtAborted |
-            PilotError::ProtIncompatible |
-            PilotError::ProtBadPacket => -100,
-            
-            PilotError::SockDisconnected |
-            PilotError::SockInvalid |
-            PilotError::SockTimeout |
-            PilotError::SockCanceled |
-            PilotError::SockIo |
-            PilotError::SockListener => -200,
-            
-            PilotError::DlpBufSize |
-            PilotError::DlpPalmOs |
-            PilotError::DlpUnsupported |
-            PilotError::DlpSocket |
-            PilotError::DlpDataSize |
-            PilotError::DlpCommand => -300,
-            
-            PilotError::FileInvalid |
-            PilotError::FileError(_) |
-            PilotError::FileAborted |
-            PilotError::FileNotFound |
-            PilotError::FileAlreadyExists => -400,
-            
-            PilotError::GenericMemory |
-            PilotError::GenericArgument |
-            PilotError::GenericSystem |
-            PilotError::InvalidData(_) |
-            PilotError::UnknownCharEncoding |
-            PilotError::InvalidDatabase |
-            PilotError::DatabaseNotFound |
-            PilotError::RecordNotFound |
-            PilotError::InvalidArgument |
-            PilotError::Timeout => -500,
-            
+            PilotError::ProtAborted | PilotError::ProtIncompatible | PilotError::ProtBadPacket => {
+                -100
+            }
+
+            PilotError::SockDisconnected
+            | PilotError::SockInvalid
+            | PilotError::SockTimeout
+            | PilotError::SockCanceled
+            | PilotError::SockIo
+            | PilotError::SockListener => -200,
+
+            PilotError::DlpBufSize
+            | PilotError::DlpPalmOs
+            | PilotError::DlpUnsupported
+            | PilotError::DlpSocket
+            | PilotError::DlpDataSize
+            | PilotError::DlpCommand => -300,
+
+            PilotError::FileInvalid
+            | PilotError::FileError(_)
+            | PilotError::FileAborted
+            | PilotError::FileNotFound
+            | PilotError::FileAlreadyExists => -400,
+
+            PilotError::GenericMemory
+            | PilotError::GenericArgument
+            | PilotError::GenericSystem
+            | PilotError::InvalidData(_)
+            | PilotError::UnknownCharEncoding
+            | PilotError::InvalidDatabase
+            | PilotError::DatabaseNotFound
+            | PilotError::RecordNotFound
+            | PilotError::InvalidArgument
+            | PilotError::Timeout => -500,
+
             PilotError::DlpError(_) => -301,
             PilotError::VfsError(_) => -300,
             PilotError::Unknown => -1,
@@ -180,55 +180,56 @@ impl PilotError {
 
     /// Check if this is a protocol-level error
     pub fn is_prot_error(&self) -> bool {
-        matches!(self,
-            PilotError::ProtAborted |
-            PilotError::ProtIncompatible |
-            PilotError::ProtBadPacket
+        matches!(
+            self,
+            PilotError::ProtAborted | PilotError::ProtIncompatible | PilotError::ProtBadPacket
         )
     }
 
     /// Check if this is a socket-level error
     pub fn is_sock_error(&self) -> bool {
-        matches!(self,
-            PilotError::SockDisconnected |
-            PilotError::SockInvalid |
-            PilotError::SockTimeout |
-            PilotError::SockCanceled |
-            PilotError::SockIo |
-            PilotError::SockListener
+        matches!(
+            self,
+            PilotError::SockDisconnected
+                | PilotError::SockInvalid
+                | PilotError::SockTimeout
+                | PilotError::SockCanceled
+                | PilotError::SockIo
+                | PilotError::SockListener
         )
     }
 
     /// Check if this is a DLP-level error
     pub fn is_dlp_error(&self) -> bool {
-        matches!(self,
-            PilotError::DlpBufSize |
-            PilotError::DlpPalmOs |
-            PilotError::DlpUnsupported |
-            PilotError::DlpSocket |
-            PilotError::DlpDataSize |
-            PilotError::DlpCommand |
-            PilotError::DlpError(_)
+        matches!(
+            self,
+            PilotError::DlpBufSize
+                | PilotError::DlpPalmOs
+                | PilotError::DlpUnsupported
+                | PilotError::DlpSocket
+                | PilotError::DlpDataSize
+                | PilotError::DlpCommand
+                | PilotError::DlpError(_)
         )
     }
 
     /// Check if this is a file-level error
     pub fn is_file_error(&self) -> bool {
-        matches!(self,
-            PilotError::FileInvalid |
-            PilotError::FileError(_) |
-            PilotError::FileAborted |
-            PilotError::FileNotFound |
-            PilotError::FileAlreadyExists
+        matches!(
+            self,
+            PilotError::FileInvalid
+                | PilotError::FileError(_)
+                | PilotError::FileAborted
+                | PilotError::FileNotFound
+                | PilotError::FileAlreadyExists
         )
     }
 
     /// Check if this is a generic error
     pub fn is_generic_error(&self) -> bool {
-        matches!(self,
-            PilotError::GenericMemory |
-            PilotError::GenericArgument |
-            PilotError::GenericSystem
+        matches!(
+            self,
+            PilotError::GenericMemory | PilotError::GenericArgument | PilotError::GenericSystem
         )
     }
 }
@@ -237,7 +238,9 @@ impl fmt::Display for PilotError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             PilotError::ProtAborted => write!(f, "Protocol: aborted by other end"),
-            PilotError::ProtIncompatible => write!(f, "Protocol: incompatible (can't talk with other end)"),
+            PilotError::ProtIncompatible => {
+                write!(f, "Protocol: incompatible (can't talk with other end)")
+            }
             PilotError::ProtBadPacket => write!(f, "Protocol: bad packet received"),
             PilotError::SockDisconnected => write!(f, "Socket: connection has been broken"),
             PilotError::SockInvalid => write!(f, "Socket: invalid protocol stack"),
@@ -493,11 +496,23 @@ mod tests {
 
     #[test]
     fn test_error_from_i32() {
-        assert!(matches!(PilotError::from_i32(-100), PilotError::ProtAborted));
-        assert!(matches!(PilotError::from_i32(-200), PilotError::SockDisconnected));
+        assert!(matches!(
+            PilotError::from_i32(-100),
+            PilotError::ProtAborted
+        ));
+        assert!(matches!(
+            PilotError::from_i32(-200),
+            PilotError::SockDisconnected
+        ));
         assert!(matches!(PilotError::from_i32(-300), PilotError::DlpBufSize));
-        assert!(matches!(PilotError::from_i32(-400), PilotError::FileInvalid));
-        assert!(matches!(PilotError::from_i32(-500), PilotError::GenericMemory));
+        assert!(matches!(
+            PilotError::from_i32(-400),
+            PilotError::FileInvalid
+        ));
+        assert!(matches!(
+            PilotError::from_i32(-500),
+            PilotError::GenericMemory
+        ));
         assert!(matches!(PilotError::from_i32(-999), PilotError::Unknown));
     }
 
@@ -505,16 +520,16 @@ mod tests {
     fn test_error_category_checks() {
         assert!(PilotError::ProtBadPacket.is_prot_error());
         assert!(!PilotError::ProtBadPacket.is_sock_error());
-        
+
         assert!(PilotError::SockDisconnected.is_sock_error());
         assert!(!PilotError::SockDisconnected.is_dlp_error());
-        
+
         assert!(PilotError::DlpBufSize.is_dlp_error());
         assert!(!PilotError::DlpBufSize.is_file_error());
-        
+
         assert!(PilotError::FileNotFound.is_file_error());
         assert!(!PilotError::FileNotFound.is_generic_error());
-        
+
         assert!(PilotError::GenericMemory.is_generic_error());
         assert!(!PilotError::GenericMemory.is_prot_error());
     }
@@ -528,7 +543,10 @@ mod tests {
 
     #[test]
     fn test_display() {
-        assert_eq!(format!("{}", PilotError::SockTimeout), "Socket: communications timeout");
+        assert_eq!(
+            format!("{}", PilotError::SockTimeout),
+            "Socket: communications timeout"
+        );
         assert_eq!(format!("{}", DlpError::NotFound), "Not found");
         assert_eq!(format!("{}", VfsError::FileNotFound), "File not found");
     }

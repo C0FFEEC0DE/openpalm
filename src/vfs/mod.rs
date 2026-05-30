@@ -3,8 +3,8 @@
 //! This module provides VFS operations for accessing files on Palm devices.
 //! VFS allows reading and writing files on expansion cards.
 
-use crate::types::{FourCharCode, PalmDateTime, VfsOpenMode};
 use crate::types::VfsFileAttributes;
+use crate::types::{FourCharCode, PalmDateTime, VfsOpenMode};
 
 /// Volume reference number
 pub type VolumeRef = u16;
@@ -86,38 +86,40 @@ pub struct VfsFile {
 pub mod path {
     /// Maximum path length
     pub const MAX_PATH: usize = 256;
-    
+
     /// Path separator
     pub const SEPARATOR: char = '/';
-    
+
     /// Check if path is absolute
     pub fn is_absolute(path: &str) -> bool {
         path.starts_with(SEPARATOR)
     }
-    
+
     /// Get parent directory
     pub fn parent(path: &str) -> Option<&str> {
         let trimmed = path.trim_end_matches(SEPARATOR);
         trimmed.rfind(SEPARATOR).map(|i| &trimmed[..i])
     }
-    
+
     /// Get file/directory name
     pub fn file_name(path: &str) -> Option<&str> {
         let trimmed = path.trim_end_matches(SEPARATOR);
-        trimmed.rfind(SEPARATOR).map(|i| trimmed.get(i + 1..).unwrap_or(trimmed))
+        trimmed
+            .rfind(SEPARATOR)
+            .map(|i| trimmed.get(i + 1..).unwrap_or(trimmed))
     }
-    
+
     /// Join path components
     pub fn join(a: &str, b: &str) -> String {
         let a = a.trim_end_matches(SEPARATOR);
         format!("{}{}{}", a, SEPARATOR, b)
     }
-    
+
     /// Normalize path (remove duplicate separators)
     pub fn normalize(path: &str) -> String {
         let mut result = String::new();
         let mut prev_sep = false;
-        
+
         for ch in path.chars() {
             if ch == SEPARATOR {
                 if !prev_sep {
@@ -129,15 +131,13 @@ pub mod path {
                 prev_sep = false;
             }
         }
-        
+
         result.trim_end_matches(SEPARATOR).to_string()
     }
-    
+
     /// Split path into components
     pub fn components(path: &str) -> Vec<&str> {
-        path.split(SEPARATOR)
-            .filter(|s| !s.is_empty())
-            .collect()
+        path.split(SEPARATOR).filter(|s| !s.is_empty()).collect()
     }
 }
 
@@ -158,12 +158,18 @@ mod tests {
     fn test_path_utils() {
         assert!(path::is_absolute("/Palm/Programs/test.txt"));
         assert!(!path::is_absolute("test.txt"));
-        
+
         assert_eq!(path::file_name("/Palm/Programs/test.txt"), Some("test.txt"));
-        assert_eq!(path::parent("/Palm/Programs/test.txt"), Some("/Palm/Programs"));
-        
+        assert_eq!(
+            path::parent("/Palm/Programs/test.txt"),
+            Some("/Palm/Programs")
+        );
+
         assert_eq!(path::join("/Palm", "Programs"), "/Palm/Programs");
-        assert_eq!(path::normalize("/Palm///Programs///test.txt"), "/Palm/Programs/test.txt");
+        assert_eq!(
+            path::normalize("/Palm///Programs///test.txt"),
+            "/Palm/Programs/test.txt"
+        );
     }
 
     #[test]

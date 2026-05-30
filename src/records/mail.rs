@@ -51,9 +51,15 @@ impl MailAttributes {
     pub const BUSY: u8 = 0x20;
     pub const ARCHIVE: u8 = 0x10;
 
-    pub fn is_secret(&self) -> bool { (self.0 & Self::SECRET) != 0 }
-    pub fn is_busy(&self) -> bool { (self.0 & Self::BUSY) != 0 }
-    pub fn is_archived(&self) -> bool { (self.0 & Self::ARCHIVE) != 0 }
+    pub fn is_secret(&self) -> bool {
+        (self.0 & Self::SECRET) != 0
+    }
+    pub fn is_busy(&self) -> bool {
+        (self.0 & Self::BUSY) != 0
+    }
+    pub fn is_archived(&self) -> bool {
+        (self.0 & Self::ARCHIVE) != 0
+    }
 }
 
 /// Mail priority
@@ -86,15 +92,15 @@ impl MailFolder {
     pub const Sent: Self = MailFolder(3);
     pub const Trash: Self = MailFolder(4);
     pub const Archive: Self = MailFolder(5);
-    
+
     pub fn from_u8(val: u8) -> Self {
         MailFolder(val)
     }
-    
+
     pub fn as_u8(&self) -> u8 {
         self.0
     }
-    
+
     pub fn match_folder(&self) -> u8 {
         match self.0 {
             0..=5 => self.0,
@@ -202,8 +208,12 @@ impl MailRecord {
 
         // Flags
         let mut flags = 0u8;
-        if !self.is_read { flags |= 0x01; }
-        if self.has_attachment { flags |= 0x02; }
+        if !self.is_read {
+            flags |= 0x01;
+        }
+        if self.has_attachment {
+            flags |= 0x02;
+        }
         data.push(flags);
 
         // Priority
@@ -314,16 +324,16 @@ pub mod constants {
 
     /// Mail database type
     pub const MAIL_TYPE: FourCharCode = FourCharCode(0x4D61696C);
-    
+
     /// Mail database creator
     pub const MAIL_CREATOR: FourCharCode = FourCharCode(0x4D61696C);
 
     /// Maximum subject length
     pub const MAX_SUBJECT_LENGTH: usize = 256;
-    
+
     /// Maximum body preview
     pub const MAX_BODY_PREVIEW: usize = 1024;
-    
+
     /// Maximum attachments
     pub const MAX_ATTACHMENTS: usize = 10;
 }
@@ -366,7 +376,7 @@ mod tests {
 
         let packed = record.pack();
         let parsed = MailRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.from, "sender@example.com");
         assert_eq!(parsed.subject, "Test subject");
         assert!(parsed.is_read);

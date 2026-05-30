@@ -60,7 +60,7 @@ impl SyncStats {
             SyncAction::None => self.skipped += 1,
         }
     }
-    
+
     /// Total records processed
     pub fn total(&self) -> u32 {
         self.added + self.updated + self.deleted + self.conflicts + self.skipped
@@ -99,22 +99,22 @@ impl SyncRecord {
 pub trait SyncHandler {
     /// Get the database name
     fn db_name(&self) -> &str;
-    
+
     /// Get database type
     fn db_type(&self) -> u32;
-    
+
     /// Get database creator
     fn db_creator(&self) -> u32;
-    
+
     /// Get sync direction
     fn direction(&self) -> SyncDirection;
-    
+
     /// Match desktop record to pilot record
     fn match_records(&self, desktop: &SyncRecord, pilot: Option<&SyncRecord>) -> bool;
-    
+
     /// Merge records
     fn merge(&self, desktop: &mut SyncRecord, pilot: &SyncRecord) -> SyncAction;
-    
+
     /// Free desktop match data
     fn free_match(&self, record: &mut SyncRecord);
 }
@@ -143,19 +143,19 @@ impl SyncHandler for DefaultSyncHandler {
     fn db_name(&self) -> &str {
         &self.db_name
     }
-    
+
     fn db_type(&self) -> u32 {
         self.db_type
     }
-    
+
     fn db_creator(&self) -> u32 {
         self.db_creator
     }
-    
+
     fn direction(&self) -> SyncDirection {
         self.direction
     }
-    
+
     fn match_records(&self, desktop: &SyncRecord, pilot: Option<&SyncRecord>) -> bool {
         // Simple match by ID
         if let Some(p) = pilot {
@@ -164,7 +164,7 @@ impl SyncHandler for DefaultSyncHandler {
             false
         }
     }
-    
+
     fn merge(&self, desktop: &mut SyncRecord, pilot: &SyncRecord) -> SyncAction {
         // Simple merge: desktop wins, unless it's empty
         if desktop.data.is_empty() && !pilot.data.is_empty() {
@@ -176,7 +176,7 @@ impl SyncHandler for DefaultSyncHandler {
             SyncAction::None
         }
     }
-    
+
     fn free_match(&self, _record: &mut SyncRecord) {
         // Nothing to free in simple implementation
     }
@@ -198,22 +198,26 @@ impl SyncProcessor {
             handler,
         }
     }
-    
+
     /// Perform sync
-    pub fn sync(&mut self, desktop_records: &[SyncRecord], pilot_records: &[SyncRecord]) -> SyncResult {
+    pub fn sync(
+        &mut self,
+        desktop_records: &[SyncRecord],
+        pilot_records: &[SyncRecord],
+    ) -> SyncResult {
         let direction = self.handler.direction();
         let mut result = SyncResult::default();
-        
+
         // Build lookup maps
         let mut pilot_map: HashMap<u32, &SyncRecord> = HashMap::new();
         for r in pilot_records {
             pilot_map.insert(r.id, r);
         }
-        
+
         // Process desktop records
         for drec in desktop_records {
             let pilot_rec = pilot_map.get(&drec.id).copied();
-            
+
             if self.handler.match_records(drec, pilot_rec) {
                 // Records match - check for conflicts
                 if let Some(prec) = pilot_rec {
@@ -250,13 +254,13 @@ impl SyncProcessor {
                 result.desktop_actions.push(SyncAction::None);
             }
         }
-        
+
         // Find records only on device
         let mut desktop_ids: HashMap<u32, bool> = HashMap::new();
         for r in desktop_records {
             desktop_ids.insert(r.id, true);
         }
-        
+
         for prec in pilot_records {
             if !desktop_ids.contains_key(&prec.id) {
                 // Record only on device
@@ -266,10 +270,10 @@ impl SyncProcessor {
                 }
             }
         }
-        
+
         result
     }
-    
+
     /// Get sync statistics
     pub fn stats(&self) -> &SyncStats {
         &self.stats
@@ -304,32 +308,32 @@ impl SyncSession {
             stats: SyncStats::default(),
         }
     }
-    
+
     /// Start sync session
     pub fn start(&mut self) {
         self.active = true;
     }
-    
+
     /// End sync session
     pub fn end(&mut self) {
         self.active = false;
     }
-    
+
     /// Check if active
     pub fn is_active(&self) -> bool {
         self.active
     }
-    
+
     /// Get last sync time
     pub fn last_sync_time(&self) -> u32 {
         self.last_sync
     }
-    
+
     /// Update stats
     pub fn update_stats(&mut self, action: SyncAction) {
         self.stats.add(action);
     }
-    
+
     /// Get stats
     pub fn stats(&self) -> &SyncStats {
         &self.stats
@@ -355,7 +359,7 @@ mod tests {
         stats.add(SyncAction::Add);
         stats.add(SyncAction::Update);
         stats.add(SyncAction::Conflict);
-        
+
         assert_eq!(stats.added, 1);
         assert_eq!(stats.updated, 1);
         assert_eq!(stats.conflicts, 1);
@@ -366,10 +370,10 @@ mod tests {
     fn test_sync_session() {
         let mut session = SyncSession::new();
         assert!(!session.is_active());
-        
+
         session.start();
         assert!(session.is_active());
-        
+
         session.update_stats(SyncAction::Add);
         assert_eq!(session.stats().added, 1);
     }

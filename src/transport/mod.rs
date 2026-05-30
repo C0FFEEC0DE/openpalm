@@ -2,22 +2,22 @@
 //!
 //! This module provides transport abstractions for serial, USB, and Bluetooth connections.
 
+#[cfg(feature = "net")]
+pub mod net;
 #[cfg(feature = "serial")]
 pub mod serial;
 #[cfg(feature = "usb")]
 pub mod usb;
-#[cfg(feature = "net")]
-pub mod net;
 
+#[cfg(feature = "net")]
+pub use net::{InetConnection, InetState, NetParams};
 #[cfg(feature = "serial")]
 pub use serial::Serial;
 #[cfg(feature = "usb")]
 pub use usb::Usb;
-#[cfg(feature = "net")]
-pub use net::{InetConnection, NetParams, InetState};
 
-use std::io::{Read, Write};
 use async_trait::async_trait;
+use std::io::{Read, Write};
 
 /// Connection state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -31,13 +31,13 @@ pub enum ConnectionState {
 pub trait Connection: Read + Write + Send {
     /// Connect to device
     fn connect(&mut self) -> crate::error::Result<()>;
-    
+
     /// Disconnect from device
     fn disconnect(&mut self) -> crate::error::Result<()>;
-    
+
     /// Check if connected
     fn is_connected(&self) -> bool;
-    
+
     /// Get connection state
     fn state(&self) -> ConnectionState {
         if self.is_connected() {
@@ -46,7 +46,7 @@ pub trait Connection: Read + Write + Send {
             ConnectionState::Disconnected
         }
     }
-    
+
     /// Set timeout for operations
     fn set_timeout(&mut self, timeout: std::time::Duration) {
         let _ = timeout;
@@ -59,29 +59,29 @@ pub trait Connection: Read + Write + Send {
 }
 
 /// Async connection trait for async/await operations
-/// 
+///
 /// This trait provides async versions of the Connection operations.
 /// Implement this trait for async transport layers.
 #[async_trait]
 pub trait AsyncConnection: Send + Sync {
     /// Connect to device asynchronously
     async fn connect_async(&mut self) -> crate::error::Result<()>;
-    
+
     /// Disconnect from device asynchronously
     async fn disconnect_async(&mut self) -> crate::error::Result<()>;
-    
+
     /// Check if connected
     fn is_connected(&self) -> bool;
-    
+
     /// Read data asynchronously
     async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize>;
-    
+
     /// Write data asynchronously  
     async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize>;
-    
+
     /// Flush write buffer
     async fn flush_async(&mut self) -> std::io::Result<()>;
-    
+
     /// Get connection state
     fn state(&self) -> ConnectionState {
         if self.is_connected() {
