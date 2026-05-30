@@ -196,7 +196,7 @@ impl HiNoteRecord {
         let mut offset = 0;
 
         // Created date
-        let created_val = u32::from_le_bytes([
+        let created_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -206,7 +206,7 @@ impl HiNoteRecord {
         record.created = PalmDateTime::from_palm(created_val);
 
         // Modified date
-        let modified_val = u32::from_le_bytes([
+        let modified_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -216,7 +216,7 @@ impl HiNoteRecord {
         record.modified = PalmDateTime::from_palm(modified_val);
 
         // Stroke count
-        record.stroke_count = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        record.stroke_count = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // Language
@@ -248,13 +248,13 @@ impl HiNoteRecord {
         let mut data = Vec::new();
 
         // Created date
-        data.extend_from_slice(&self.created.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.created.to_palm().to_be_bytes());
 
         // Modified date
-        data.extend_from_slice(&self.modified.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.modified.to_palm().to_be_bytes());
 
         // Stroke count
-        data.extend_from_slice(&self.stroke_count.to_le_bytes());
+        data.extend_from_slice(&self.stroke_count.to_be_bytes());
 
         // Language
         data.push(self.language as u8);
@@ -303,8 +303,8 @@ impl HiNoteRecord {
         }
         
         // Simplified: return min/max from first 4 bytes
-        let min_x = i16::from_le_bytes([self.ink_data[0], self.ink_data[1]]);
-        let min_y = i16::from_le_bytes([self.ink_data[2], self.ink_data[3]]);
+        let min_x = i16::from_be_bytes([self.ink_data[0], self.ink_data[1]]);
+        let min_y = i16::from_be_bytes([self.ink_data[2], self.ink_data[3]]);
         Some((min_x, min_y, min_x + 100, min_y + 100))
     }
 }

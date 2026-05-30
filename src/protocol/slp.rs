@@ -231,10 +231,20 @@ impl SlpPacket {
             }
         }
         
-        // Checksum
+        // Checksum with SLIP escaping
         let checksum = self.calculate_checksum();
-        result.push(checksum);
-        
+        match checksum {
+            0xC0 => {
+                result.push(0xDB);
+                result.push(0xDC);
+            }
+            0xDB => {
+                result.push(0xDB);
+                result.push(0xDD);
+            }
+            _ => result.push(checksum),
+        }
+
         // End marker
         result.push(0xC0);
         
@@ -529,5 +539,22 @@ mod tests {
         let header_sum = 0x00u8.wrapping_add(0x01).wrapping_add(0x00).wrapping_add(0x02);
         let data_sum = 0x10u8.wrapping_add(0x20);
         assert_eq!(checksum, header_sum.wrapping_add(data_sum));
+    }
+
+    #[test]
+    fn test_checksum_escaping_roundtrip() {
+        // checksum = 0x00 + 0x00 + 0x00 + 0x01 + 0xBF = 0xC0 (SLIP END marker)
+        let packet = SlpPacket::data(0, vec![0xBF]);
+        let encoded = packet.encode();
+        let decoded = SlpPacket::decode(&encoded).unwrap();
+        assert_eq!(decoded.data, vec![0xBF]);
+        assert_eq!(decoded.checksum, 0xC0);
+
+        // checksum = 0x00 + 0x00 + 0x00 + 0x01 + 0xDA = 0xDB (SLIP ESC marker)
+        let packet2 = SlpPacket::data(0, vec![0xDA]);
+        let encoded2 = packet2.encode();
+        let decoded2 = SlpPacket::decode(&encoded2).unwrap();
+        assert_eq!(decoded2.data, vec![0xDA]);
+        assert_eq!(decoded2.checksum, 0xDB);
     }
 }

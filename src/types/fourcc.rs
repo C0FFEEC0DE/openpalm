@@ -51,6 +51,16 @@ impl FourCharCode {
         bytes.copy_from_slice(s.as_bytes());
         FourCharCode::from_bytes(bytes)
     }
+
+    /// Try to create from a string slice, returning None if not exactly 4 bytes
+    pub fn try_from_str(s: &str) -> Option<Self> {
+        if s.len() != 4 {
+            return None;
+        }
+        let mut bytes = [0u8; 4];
+        bytes.copy_from_slice(s.as_bytes());
+        Some(FourCharCode::from_bytes(bytes))
+    }
 }
 
 

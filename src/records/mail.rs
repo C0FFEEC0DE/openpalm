@@ -154,7 +154,7 @@ impl MailRecord {
         offset += 2;
 
         // Date received
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -164,7 +164,7 @@ impl MailRecord {
         record.date_received = PalmDateTime::from_palm(date_val);
 
         // Date sent
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -217,10 +217,10 @@ impl MailRecord {
         data.push(0);
 
         // Date received
-        data.extend_from_slice(&self.date_received.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date_received.to_palm().to_be_bytes());
 
         // Date sent
-        data.extend_from_slice(&self.date_sent.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date_sent.to_palm().to_be_bytes());
 
         // Addresses
         data.extend_from_slice(&Self::pack_string(&self.from));

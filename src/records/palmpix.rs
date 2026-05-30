@@ -243,7 +243,7 @@ impl PalmPixRecord {
         let mut offset = 0;
 
         // Created date
-        let created_val = u32::from_le_bytes([
+        let created_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -253,7 +253,7 @@ impl PalmPixRecord {
         record.created = PalmDateTime::from_palm(created_val);
 
         // Modified date
-        let modified_val = u32::from_le_bytes([
+        let modified_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -270,11 +270,11 @@ impl PalmPixRecord {
         offset += 1;
 
         // Width
-        record.width = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        record.width = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // Height
-        record.height = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        record.height = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // Bits per pixel
@@ -302,10 +302,10 @@ impl PalmPixRecord {
         let mut data = Vec::new();
 
         // Created date
-        data.extend_from_slice(&self.created.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.created.to_palm().to_be_bytes());
 
         // Modified date
-        data.extend_from_slice(&self.modified.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.modified.to_palm().to_be_bytes());
 
         // Image format
         data.push(self.format as u8);
@@ -314,10 +314,10 @@ impl PalmPixRecord {
         data.push(0);
 
         // Width
-        data.extend_from_slice(&self.width.to_le_bytes());
+        data.extend_from_slice(&self.width.to_be_bytes());
 
         // Height
-        data.extend_from_slice(&self.height.to_le_bytes());
+        data.extend_from_slice(&self.height.to_be_bytes());
 
         // Bits per pixel
         data.push(self.bits_per_pixel);

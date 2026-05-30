@@ -299,7 +299,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
                 flags.insert(PadpFlags::LONG);
             }
             
-            let size_hint = if first { total_len as u32 } else { offset as u32 };
+            let size_hint = if first { total_len as u32 } else { chunk_size as u32 };
             
             let packet = PadpPacket::new_data(
                 self.txid,
@@ -341,6 +341,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             offset += chunk_size;
             first = false;
             self.txid = self.next_txid;
+            self.next_txid = self.next_txid.wrapping_add(1);
         }
         
         Ok(total_len)
@@ -353,12 +354,29 @@ impl<S: Read + Write + Send> PadpConnection<S> {
         let stream = self.stream.as_mut()
             .ok_or(PilotError::SockDisconnected)?;
         
+        // Read base header (5 bytes: type + flags + txid + size_short)
         let mut header = [0u8; PADP_HEADER_LEN + 2];
-        
-        // Read header
         let mut pos = 0;
-        while pos < PADP_HEADER_LEN + 2 {
-            let n = stream.read(&mut header[pos..])
+        while pos < PADP_HEADER_LEN {
+            let n = stream.read(&mut header[pos..PADP_HEADER_LEN])
+                .map_err(|_| PilotError::SockIo)?;
+            if n == 0 {
+                return Err(PilotError::SockDisconnected);
+            }
+            pos += n;
+        }
+
+        // Check LONG flag and read extended size if needed
+        let flags = PadpFlags::from_bits(header[1])
+            .ok_or(PilotError::ProtBadPacket)?;
+        let header_len = if flags.contains(PadpFlags::LONG) {
+            PADP_HEADER_LEN + 2
+        } else {
+            PADP_HEADER_LEN
+        };
+
+        while pos < header_len {
+            let n = stream.read(&mut header[pos..header_len])
                 .map_err(|_| PilotError::SockIo)?;
             if n == 0 {
                 return Err(PilotError::SockDisconnected);
@@ -368,10 +386,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
         
         let packet_type = PadpType::from_u8(header[0])
             .ok_or(PilotError::ProtBadPacket)?;
-        
-        let flags = PadpFlags::from_bits(header[1])
-            .ok_or(PilotError::ProtBadPacket)?;
-        
+
         let txid = header[2];
         
         let size = if flags.contains(PadpFlags::LONG) {
@@ -393,7 +408,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
             let n = stream.read(&mut data[received..])
                 .map_err(|_| PilotError::SockIo)?;
             if n == 0 {
-                break;
+                return Err(PilotError::SockDisconnected);
             }
             received += n;
         }

@@ -8,10 +8,20 @@ pub const PALM_EPOCH_TO_UNIX_EPOCH: i64 = 2082844800;
 /// Palm OS undefined date value
 pub const PALM_UNDEFINED_DATE: u32 = 0x83DAC000;
 
-/// Convert Unix time_t to Palm OS date/time
+/// Convert Unix time_t to Palm OS date/time (unchecked, may overflow)
 #[inline]
 pub fn to_palm_time(unix_time: i64) -> u32 {
     (unix_time + PALM_EPOCH_TO_UNIX_EPOCH) as u32
+}
+
+/// Convert Unix time_t to Palm OS date/time, returning None on overflow
+#[inline]
+pub fn to_palm_time_checked(unix_time: i64) -> Option<u32> {
+    let palm = unix_time.checked_add(PALM_EPOCH_TO_UNIX_EPOCH)?;
+    if palm < 0 || palm > u32::MAX as i64 {
+        return None;
+    }
+    Some(palm as u32)
 }
 
 /// Convert Palm OS date/time to Unix time_t
@@ -29,11 +39,10 @@ pub fn palm_to_system_time(palm_time: u32) -> SystemTime {
 
 /// Convert Unix SystemTime to Palm OS date/time
 #[inline]
-pub fn system_time_to_palm(time: SystemTime) -> u32 {
-    let duration = time.duration_since(SystemTime::UNIX_EPOCH)
-        .expect("time before Unix epoch");
+pub fn system_time_to_palm(time: SystemTime) -> Option<u32> {
+    let duration = time.duration_since(SystemTime::UNIX_EPOCH).ok()?;
     let unix_secs = duration.as_secs() as i64;
-    to_palm_time(unix_secs)
+    Some(to_palm_time(unix_secs))
 }
 
 /// A Palm OS date/time value
@@ -273,6 +282,24 @@ mod tests {
     fn test_days_in_month() {
         assert_eq!(days_in_month(2024, 2), 29);
         assert_eq!(days_in_month(2023, 2), 28);
+    }
+
+    #[test]
+    fn test_to_palm_time_overflow_returns_none() {
+        // Year 2107 exceeds u32::MAX and should fail
+        let unix_2107 = 4102444800i64; // Jan 1, 2107
+        assert!(to_palm_time_checked(unix_2107).is_none());
+
+        // Pre-1904 dates should fail (before Palm epoch)
+        let unix_pre_1904 = -3471552000i64; // Jan 1, 1800
+        assert!(to_palm_time_checked(unix_pre_1904).is_none());
+
+        // Jan 1, 2024 should succeed
+        let unix_secs_2024 = 1704067200i64;
+        assert!(to_palm_time_checked(unix_secs_2024).is_some());
+
+        // Jan 1, 1904 (Palm epoch) should succeed
+        assert!(to_palm_time_checked(-PALM_EPOCH_TO_UNIX_EPOCH).is_some());
     }
 }
 

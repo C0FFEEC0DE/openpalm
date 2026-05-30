@@ -77,7 +77,7 @@ impl TodoRecord {
         let mut record = Self::default();
         
         // Parse due date
-        let due_short = u16::from_le_bytes([data[0], data[1]]);
+        let due_short = u16::from_be_bytes([data[0], data[1]]);
         
         if due_short != 0xFFFF {
             // Parse date from 16-bit Palm format
@@ -145,7 +145,7 @@ impl TodoRecord {
             let due_short = (((year - 4) & 0x7F) << 9) |
                            (((month as u16 + 1) & 0x0F) << 5) |
                            ((day as u16) & 0x1F);
-            data.extend_from_slice(&due_short.to_le_bytes());
+            data.extend_from_slice(&due_short.to_be_bytes());
         } else {
             data.push(0);
             data.push(0);
@@ -230,21 +230,21 @@ pub struct TodoAppInfo {
 impl TodoAppInfo {
     /// Parse from app info data
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        if data.len() < 4 {
+        if data.len() < 277 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
-        let mut info = Self::default();
-        info.last_unique_id = u16::from_be_bytes([data[0], data[1]]);
-        info.num_reminders = data[2];
-        
-        if data.len() > 3 {
-            info.show_completed = (data[3] & 0x01) != 0;
-            info.sort_by_priority = (data[3] & 0x02) != 0;
-            info.sort_by_due_date = (data[3] & 0x04) != 0;
-        }
-        
-        Ok(info)
+
+        let (categories, last_uniq_id, rest) = crate::database::parse_categories(data)?;
+        let flags = rest[1];
+
+        Ok(Self {
+            categories,
+            last_unique_id: last_uniq_id as u16,
+            num_reminders: rest[0],
+            show_completed: (flags & 0x01) != 0,
+            sort_by_priority: (flags & 0x02) != 0,
+            sort_by_due_date: (flags & 0x04) != 0,
+        })
     }
     
     /// Convert to bytes

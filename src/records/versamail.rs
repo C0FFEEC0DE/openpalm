@@ -209,7 +209,7 @@ impl VersaMailRecord {
         offset += 3;
 
         // Size
-        record.size = u32::from_le_bytes([
+        record.size = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -218,7 +218,7 @@ impl VersaMailRecord {
         offset += 4;
 
         // Date received
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -228,7 +228,7 @@ impl VersaMailRecord {
         record.date_received = PalmDateTime::from_palm(date_val);
 
         // Date sent
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -238,7 +238,7 @@ impl VersaMailRecord {
         record.date_sent = PalmDateTime::from_palm(date_val);
 
         // IMAP ID
-        record.imap_id = u32::from_le_bytes([
+        record.imap_id = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -301,16 +301,16 @@ impl VersaMailRecord {
         data.push(0);
 
         // Size
-        data.extend_from_slice(&self.size.to_le_bytes());
+        data.extend_from_slice(&self.size.to_be_bytes());
 
         // Date received
-        data.extend_from_slice(&self.date_received.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date_received.to_palm().to_be_bytes());
 
         // Date sent
-        data.extend_from_slice(&self.date_sent.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date_sent.to_palm().to_be_bytes());
 
         // IMAP ID
-        data.extend_from_slice(&self.imap_id.to_le_bytes());
+        data.extend_from_slice(&self.imap_id.to_be_bytes());
 
         // Addresses
         data.extend_from_slice(&Self::pack_string(&self.from));

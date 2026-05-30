@@ -125,7 +125,7 @@ impl MoneyRecord {
         let mut offset = 0;
 
         // Parse date
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -135,7 +135,7 @@ impl MoneyRecord {
         record.date = PalmDateTime::from_palm(date_val);
 
         // Amount
-        record.amount = i32::from_le_bytes([
+        record.amount = i32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -178,10 +178,10 @@ impl MoneyRecord {
         let mut data = Vec::new();
 
         // Date
-        data.extend_from_slice(&self.date.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date.to_palm().to_be_bytes());
 
         // Amount
-        data.extend_from_slice(&self.amount.to_le_bytes());
+        data.extend_from_slice(&self.amount.to_be_bytes());
 
         // Currency
         data.extend_from_slice(&self.currency);

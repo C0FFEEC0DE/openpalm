@@ -27,11 +27,11 @@ fn build_read_sys_info_response() -> Vec<u8> {
 
     // Arg 0: rom_version = 0x01020304 (u32, LE)
     data.push(0x04); // tiny format, len=4
-    data.extend_from_slice(&0x01020304u32.to_le_bytes());
+    data.extend_from_slice(&0x01020304u32.to_be_bytes());
 
     // Arg 1: locale = 0x00000001 (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&0x00000001u32.to_le_bytes());
+    data.extend_from_slice(&0x00000001u32.to_be_bytes());
 
     // Arg 2: prod_id_len = 4 (u8)
     data.push(0x01);
@@ -43,11 +43,11 @@ fn build_read_sys_info_response() -> Vec<u8> {
 
     // Arg 4: dlp_major = 1 (u16, LE)
     data.push(0x02);
-    data.extend_from_slice(&1u16.to_le_bytes());
+    data.extend_from_slice(&1u16.to_be_bytes());
 
     // Arg 5: dlp_minor = 4 (u16, LE)
     data.push(0x02);
-    data.extend_from_slice(&4u16.to_le_bytes());
+    data.extend_from_slice(&4u16.to_be_bytes());
 
     data
 }
@@ -115,7 +115,7 @@ fn build_get_sys_datetime_response() -> Vec<u8> {
 
     // Arg 0: palm datetime = 0x30295296 (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&0x30295296u32.to_le_bytes());
+    data.extend_from_slice(&0x30295296u32.to_be_bytes());
 
     data
 }
@@ -148,19 +148,19 @@ fn build_read_storage_info_response() -> Vec<u8> {
 
     // Arg 0: version = 1 (i32, LE)
     data.push(0x04);
-    data.extend_from_slice(&1i32.to_le_bytes());
+    data.extend_from_slice(&1i32.to_be_bytes());
 
     // Arg 1: rom_size = 0x00100000 (u32, LE) = 1MB
     data.push(0x04);
-    data.extend_from_slice(&0x00100000u32.to_le_bytes());
+    data.extend_from_slice(&0x00100000u32.to_be_bytes());
 
     // Arg 2: ram_size = 0x00080000 (u32, LE) = 512KB
     data.push(0x04);
-    data.extend_from_slice(&0x00080000u32.to_le_bytes());
+    data.extend_from_slice(&0x00080000u32.to_be_bytes());
 
     // Arg 3: ram_free = 0x00040000 (u32, LE) = 256KB
     data.push(0x04);
-    data.extend_from_slice(&0x00040000u32.to_le_bytes());
+    data.extend_from_slice(&0x00040000u32.to_be_bytes());
 
     // Arg 4: name = "Palm\0" (5 bytes)
     data.push(0x05);
@@ -205,11 +205,11 @@ fn build_read_user_info_response() -> Vec<u8> {
 
     // Arg 0: user_id = 0x12345678 (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&0x12345678u32.to_le_bytes());
+    data.extend_from_slice(&0x12345678u32.to_be_bytes());
 
     // Arg 1: viewer_id = 0x00000000 (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&0x00000000u32.to_le_bytes());
+    data.extend_from_slice(&0x00000000u32.to_be_bytes());
 
     // Arg 2: username = "TestUser\0" (9 bytes)
     data.push(0x09);
@@ -217,7 +217,7 @@ fn build_read_user_info_response() -> Vec<u8> {
 
     // Arg 3: last_sync_pc = 0x00 (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&0u32.to_le_bytes());
+    data.extend_from_slice(&0u32.to_be_bytes());
 
     data
 }
@@ -255,7 +255,7 @@ fn build_open_db_response(handle: u8) -> Vec<u8> {
     ];
     // Arg 0: handle (u32, LE)
     data.push(0x04);
-    data.extend_from_slice(&(handle as u32).to_le_bytes());
+    data.extend_from_slice(&(handle as u32).to_be_bytes());
     data
 }
 
@@ -339,35 +339,35 @@ fn build_read_db_list_response() -> Vec<u8> {
 
     // Database 1: "AddrDB" (8 bytes with null)
     add_tiny(&mut data, b"AddrDB\0");                    // arg 0: name
-    add_tiny(&mut data, &0x0001u16.to_le_bytes());       // arg 1: flags
-    add_tiny(&mut data, &0x44415442u32.to_le_bytes());  // arg 2: db_type "DATB"
-    add_tiny(&mut data, &0x50414C4Du32.to_le_bytes());  // arg 3: creator "PALM"
+    add_tiny(&mut data, &0x0001u16.to_be_bytes());       // arg 1: flags
+    add_tiny(&mut data, &0x44415442u32.to_be_bytes());  // arg 2: db_type "DATB"
+    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes());  // arg 3: creator "PALM"
     add_tiny(&mut data, &[0]);                           // arg 4: card_no
-    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 5: db_id
-    add_tiny(&mut data, &0x30000000u32.to_le_bytes());  // arg 6: created
-    add_tiny(&mut data, &0x30100000u32.to_le_bytes());  // arg 7: modified
-    add_tiny(&mut data, &0u32.to_le_bytes());            // arg 8: backup_date
-    add_tiny(&mut data, &100u32.to_le_bytes());         // arg 9: mod_num
-    add_tiny(&mut data, &0x00004000u32.to_le_bytes());  // arg 10: total_bytes
-    add_tiny(&mut data, &0x00003000u32.to_le_bytes());  // arg 11: data_bytes
-    add_tiny(&mut data, &25u16.to_le_bytes());           // arg 12: num_records
-    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 13: unique_id_seed
+    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 5: db_id
+    add_tiny(&mut data, &0x30000000u32.to_be_bytes());  // arg 6: created
+    add_tiny(&mut data, &0x30100000u32.to_be_bytes());  // arg 7: modified
+    add_tiny(&mut data, &0u32.to_be_bytes());            // arg 8: backup_date
+    add_tiny(&mut data, &100u32.to_be_bytes());         // arg 9: mod_num
+    add_tiny(&mut data, &0x00004000u32.to_be_bytes());  // arg 10: total_bytes
+    add_tiny(&mut data, &0x00003000u32.to_be_bytes());  // arg 11: data_bytes
+    add_tiny(&mut data, &25u16.to_be_bytes());           // arg 12: num_records
+    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 13: unique_id_seed
 
     // Database 2: "DateBkDB" (8 bytes with null)
     add_tiny(&mut data, b"DateBkDB\0");                  // arg 14: name
-    add_tiny(&mut data, &0x0001u16.to_le_bytes());       // arg 15: flags
-    add_tiny(&mut data, &0x44415442u32.to_le_bytes());  // arg 16: db_type
-    add_tiny(&mut data, &0x50414C4Du32.to_le_bytes());  // arg 17: creator
+    add_tiny(&mut data, &0x0001u16.to_be_bytes());       // arg 15: flags
+    add_tiny(&mut data, &0x44415442u32.to_be_bytes());  // arg 16: db_type
+    add_tiny(&mut data, &0x50414C4Du32.to_be_bytes());  // arg 17: creator
     add_tiny(&mut data, &[0]);                           // arg 18: card_no
-    add_tiny(&mut data, &2u32.to_le_bytes());            // arg 19: db_id
-    add_tiny(&mut data, &0x30010000u32.to_le_bytes());  // arg 20: created
-    add_tiny(&mut data, &0x30120000u32.to_le_bytes());  // arg 21: modified
-    add_tiny(&mut data, &0u32.to_le_bytes());            // arg 22: backup_date
-    add_tiny(&mut data, &200u32.to_le_bytes());         // arg 23: mod_num
-    add_tiny(&mut data, &0x00008000u32.to_le_bytes());  // arg 24: total_bytes
-    add_tiny(&mut data, &0x00006000u32.to_le_bytes());  // arg 25: data_bytes
-    add_tiny(&mut data, &50u16.to_le_bytes());           // arg 26: num_records
-    add_tiny(&mut data, &1u32.to_le_bytes());            // arg 27: unique_id_seed
+    add_tiny(&mut data, &2u32.to_be_bytes());            // arg 19: db_id
+    add_tiny(&mut data, &0x30010000u32.to_be_bytes());  // arg 20: created
+    add_tiny(&mut data, &0x30120000u32.to_be_bytes());  // arg 21: modified
+    add_tiny(&mut data, &0u32.to_be_bytes());            // arg 22: backup_date
+    add_tiny(&mut data, &200u32.to_be_bytes());         // arg 23: mod_num
+    add_tiny(&mut data, &0x00008000u32.to_be_bytes());  // arg 24: total_bytes
+    add_tiny(&mut data, &0x00006000u32.to_be_bytes());  // arg 25: data_bytes
+    add_tiny(&mut data, &50u16.to_be_bytes());           // arg 26: num_records
+    add_tiny(&mut data, &1u32.to_be_bytes());            // arg 27: unique_id_seed
 
     data
 }
@@ -407,7 +407,7 @@ fn build_create_db_response(handle: u8) -> Vec<u8> {
         0,
     ];
     data.push(0x04);
-    data.extend_from_slice(&(handle as u32).to_le_bytes());
+    data.extend_from_slice(&(handle as u32).to_be_bytes());
     data
 }
 
@@ -496,7 +496,7 @@ fn build_read_record_response(id: u32, index: u32, data: &[u8], attrs: u8) -> Ve
 
     // Arg 1: record id (u32)
     response.push(0x04);
-    response.extend_from_slice(&id.to_le_bytes());
+    response.extend_from_slice(&id.to_be_bytes());
 
     // Arg 2: attributes (u8)
     response.push(0x01);
@@ -504,7 +504,7 @@ fn build_read_record_response(id: u32, index: u32, data: &[u8], attrs: u8) -> Ve
 
     // Arg 3: index (u32)
     response.push(0x04);
-    response.extend_from_slice(&index.to_le_bytes());
+    response.extend_from_slice(&index.to_be_bytes());
 
     response
 }
@@ -537,7 +537,7 @@ fn build_write_record_response(id: u32) -> Vec<u8> {
         0,
     ];
     data.push(0x04);
-    data.extend_from_slice(&id.to_le_bytes());
+    data.extend_from_slice(&id.to_be_bytes());
     data
 }
 

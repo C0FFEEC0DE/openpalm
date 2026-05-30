@@ -35,11 +35,25 @@ const BUFFER_GROWTH_FACTOR: usize = 2;
 const BUFFER_MIN_GROWTH: usize = 16;
 
 /// A variable-size buffer for storing binary data
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct PiBuffer {
     data: *mut u8,
     capacity: usize,
     used: usize,
+}
+
+impl Clone for PiBuffer {
+    fn clone(&self) -> Self {
+        if self.data.is_null() || self.used == 0 {
+            return Self::new(0);
+        }
+        let mut buf = Self::new(self.used);
+        unsafe {
+            ptr::copy_nonoverlapping(self.data, buf.data, self.used);
+            buf.used = self.used;
+        }
+        buf
+    }
 }
 
 impl PiBuffer {
@@ -332,5 +346,16 @@ mod tests {
         let slice = buf.slice(0, 5);
         assert!(slice.is_some());
         assert_eq!(slice.unwrap().as_slice(), b"hello");
+    }
+
+    #[test]
+    fn test_clone_is_deep_copy() {
+        let buf = PiBuffer::from_bytes(b"original");
+        let cloned = buf.clone();
+        // Both should have same content
+        assert_eq!(buf.as_slice(), cloned.as_slice());
+        // After dropping the original, clone must still be valid
+        drop(buf);
+        assert_eq!(cloned.as_slice(), b"original");
     }
 }

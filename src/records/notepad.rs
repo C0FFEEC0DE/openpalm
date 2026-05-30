@@ -59,7 +59,7 @@ impl NotepadRecord {
         let mut offset = 0;
 
         // Created date (Palm timestamp)
-        let created_val = u32::from_le_bytes([
+        let created_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -70,7 +70,7 @@ impl NotepadRecord {
         let created = PalmDateTime::from_palm(created_val);
 
         // Unique ID
-        let unique_id = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        let unique_id = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // Parse text portion
@@ -106,10 +106,10 @@ impl NotepadRecord {
         let mut data = Vec::new();
 
         // Created date
-        data.extend_from_slice(&self.created.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.created.to_palm().to_be_bytes());
 
         // Unique ID (truncated)
-        data.extend_from_slice(&(self.id as u16).to_le_bytes());
+        data.extend_from_slice(&(self.id as u16).to_be_bytes());
 
         // Note text
         let text_bytes = self.note_text.as_bytes();

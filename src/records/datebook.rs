@@ -184,7 +184,7 @@ impl DatebookRecord {
         let mut offset = 0;
 
         // Parse date
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -194,11 +194,11 @@ impl DatebookRecord {
         record.date = PalmDateTime::from_palm(date_val);
 
         // Start time
-        record.start_time = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        record.start_time = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // End time
-        record.end_time = u16::from_le_bytes([data[offset], data[offset + 1]]);
+        record.end_time = u16::from_be_bytes([data[offset], data[offset + 1]]);
         offset += 2;
 
         // Event type
@@ -239,7 +239,7 @@ impl DatebookRecord {
                 let day_of_month = data[offset + 3];
                 offset += 4;
 
-                let end_date_val = u32::from_le_bytes([
+                let end_date_val = u32::from_be_bytes([
                     data[offset],
                     data[offset + 1],
                     data[offset + 2],
@@ -260,7 +260,7 @@ impl DatebookRecord {
 
         // Check for alarm info
         if offset + 2 <= data.len() {
-            let minutes = u16::from_le_bytes([data[offset], data[offset + 1]]);
+            let minutes = u16::from_be_bytes([data[offset], data[offset + 1]]);
             if minutes > 0 {
                 record.alarm = Some(AlarmInfo {
                     minutes,
@@ -278,13 +278,13 @@ impl DatebookRecord {
         let mut data = Vec::new();
 
         // Date
-        data.extend_from_slice(&self.date.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date.to_palm().to_be_bytes());
 
         // Start time
-        data.extend_from_slice(&self.start_time.to_le_bytes());
+        data.extend_from_slice(&self.start_time.to_be_bytes());
 
         // End time
-        data.extend_from_slice(&self.end_time.to_le_bytes());
+        data.extend_from_slice(&self.end_time.to_be_bytes());
 
         // Event type
         data.push(self.event_type as u8);
@@ -305,12 +305,12 @@ impl DatebookRecord {
             data.push(repeat.frequency);
             data.push(repeat.day_of_week);
             data.push(repeat.day_of_month);
-            data.extend_from_slice(&repeat.end_date.to_palm().to_le_bytes());
+            data.extend_from_slice(&repeat.end_date.to_palm().to_be_bytes());
         }
 
         // Alarm info
         if let Some(alarm) = &self.alarm {
-            data.extend_from_slice(&alarm.minutes.to_le_bytes());
+            data.extend_from_slice(&alarm.minutes.to_be_bytes());
         }
 
         data

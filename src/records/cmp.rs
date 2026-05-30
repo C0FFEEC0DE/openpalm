@@ -256,7 +256,7 @@ impl CmpRecord {
         offset += 1;
 
         // Timestamp
-        let timestamp_val = u32::from_le_bytes([
+        let timestamp_val = u32::from_be_bytes([
             data[offset],
             data[offset + 1],
             data[offset + 2],
@@ -301,7 +301,7 @@ impl CmpRecord {
         data.push(self.status as u8);
 
         // Timestamp
-        data.extend_from_slice(&self.timestamp.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.timestamp.to_palm().to_be_bytes());
 
         // Strings
         data.extend_from_slice(&Self::pack_string(&self.sender_id));

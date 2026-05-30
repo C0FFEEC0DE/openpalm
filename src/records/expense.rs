@@ -164,7 +164,7 @@ impl ExpenseRecord {
         // Skip some bytes
         offset += 2;
 
-        let amount = i32::from_le_bytes([
+        let amount = i32::from_be_bytes([
             data[offset], data[offset + 1],
             data[offset + 2], data[offset + 3],
         ]);
@@ -174,7 +174,7 @@ impl ExpenseRecord {
         offset += 4;
 
         // Date (Palm format)
-        let date_val = u32::from_le_bytes([
+        let date_val = u32::from_be_bytes([
             data[offset], data[offset + 1],
             data[offset + 2], data[offset + 3],
         ]);
@@ -182,7 +182,7 @@ impl ExpenseRecord {
         let date = PalmDateTime::from_palm(date_val);
 
         // Date paid
-        let date_paid_val = u32::from_le_bytes([
+        let date_paid_val = u32::from_be_bytes([
             data[offset], data[offset + 1],
             data[offset + 2], data[offset + 3],
         ]);
@@ -250,16 +250,16 @@ impl ExpenseRecord {
         data.push(0); // Reserved
 
         // Amount
-        data.extend_from_slice(&self.amount.to_le_bytes());
+        data.extend_from_slice(&self.amount.to_be_bytes());
 
         // Currency
         data.extend_from_slice(&self.currency);
 
         // Date
-        data.extend_from_slice(&self.date.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date.to_palm().to_be_bytes());
 
         // Date paid
-        data.extend_from_slice(&self.date_paid.to_palm().to_le_bytes());
+        data.extend_from_slice(&self.date_paid.to_palm().to_be_bytes());
 
         // Payment type
         data.push(self.payment_type as u8);

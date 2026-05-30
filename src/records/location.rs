@@ -238,11 +238,11 @@ impl LocationRecord {
         let mut offset = 0;
 
         // Parse latitude (7 bytes)
-        let lat_deg = i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_deg = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
-        let lat_min = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_min = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
-        let lat_sec = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lat_sec = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
         let lat_dir = match data[offset] {
             b'S' => GpsDirection::South,
@@ -253,11 +253,11 @@ impl LocationRecord {
         record.latitude = GpsCoordinate::new(lat_deg, lat_min, lat_sec, lat_dir);
 
         // Parse longitude (7 bytes)
-        let lon_deg = i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_deg = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
-        let lon_min = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_min = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
-        let lon_sec = u32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+        let lon_sec = u32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
         offset += 4;
         let lon_dir = match data[offset] {
             b'W' => GpsDirection::West,
@@ -270,7 +270,7 @@ impl LocationRecord {
 
         // Parse altitude if present
         if offset + 4 <= data.len() {
-            let alt = i32::from_le_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
+            let alt = i32::from_be_bytes([data[offset], data[offset + 1], data[offset + 2], data[offset + 3]]);
             if alt != 0 {
                 record.altitude = Some(alt);
             }
@@ -317,20 +317,20 @@ impl LocationRecord {
         let mut data = Vec::new();
 
         // Latitude
-        data.extend_from_slice(&self.latitude.degrees.to_le_bytes());
-        data.extend_from_slice(&self.latitude.minutes.to_le_bytes());
-        data.extend_from_slice(&self.latitude.seconds.to_le_bytes());
+        data.extend_from_slice(&self.latitude.degrees.to_be_bytes());
+        data.extend_from_slice(&self.latitude.minutes.to_be_bytes());
+        data.extend_from_slice(&self.latitude.seconds.to_be_bytes());
         data.push(self.latitude.direction.to_char() as u8);
 
         // Longitude
-        data.extend_from_slice(&self.longitude.degrees.to_le_bytes());
-        data.extend_from_slice(&self.longitude.minutes.to_le_bytes());
-        data.extend_from_slice(&self.longitude.seconds.to_le_bytes());
+        data.extend_from_slice(&self.longitude.degrees.to_be_bytes());
+        data.extend_from_slice(&self.longitude.minutes.to_be_bytes());
+        data.extend_from_slice(&self.longitude.seconds.to_be_bytes());
         data.push(self.longitude.direction.to_char() as u8);
 
         // Altitude
         let alt = self.altitude.unwrap_or(0i32);
-        data.extend_from_slice(&alt.to_le_bytes());
+        data.extend_from_slice(&alt.to_be_bytes());
 
         // Strings
         data.extend_from_slice(&Self::pack_string(&self.name));

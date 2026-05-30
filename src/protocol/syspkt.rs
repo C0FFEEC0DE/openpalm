@@ -110,7 +110,7 @@ impl SysPkt {
         bytes.push(self.cmd as u8);
         bytes.push(self.seq);
         bytes.push(self.flags);
-        bytes.extend_from_slice(&(self.payload.len() as u16).to_le_bytes());
+        bytes.extend_from_slice(&(self.payload.len() as u16).to_be_bytes());
         
         // Payload
         bytes.extend_from_slice(&self.payload);
@@ -132,7 +132,7 @@ impl SysPkt {
         
         let seq = data[2];
         let flags = data[3];
-        let length = u16::from_le_bytes([data[4], data[5]]) as usize;
+        let length = u16::from_be_bytes([data[4], data[5]]) as usize;
 
         if data.len() < 6 + length {
             return Err(PilotError::InvalidData("SysPkt length mismatch".into()));
@@ -192,7 +192,7 @@ pub struct SysInfo {
 impl SysInfo {
     /// Parse from payload
     pub fn parse(payload: &[u8]) -> Result<Self> {
-        if payload.len() < 24 {
+        if payload.len() < 27 {
             return Err(PilotError::InvalidData("SysInfo payload too short".into()));
         }
 
@@ -201,8 +201,8 @@ impl SysInfo {
             rom_version_minor: payload[1],
             rom_version_dot: payload[2],
             locale: [payload[3], payload[4], payload[5], payload[6]],
-            device_id: u32::from_le_bytes([payload[7], payload[8], payload[9], payload[10]]),
-            product_id: u32::from_le_bytes([payload[11], payload[12], payload[13], payload[14]]),
+            device_id: u32::from_be_bytes([payload[7], payload[8], payload[9], payload[10]]),
+            product_id: u32::from_be_bytes([payload[11], payload[12], payload[13], payload[14]]),
             serial: [payload[15], payload[16], payload[17], payload[18], payload[19], payload[20], payload[21], payload[22], payload[23], payload[24], payload[25], payload[26]],
         })
     }
@@ -215,8 +215,8 @@ impl SysInfo {
         payload.push(self.rom_version_minor);
         payload.push(self.rom_version_dot);
         payload.extend_from_slice(&self.locale);
-        payload.extend_from_slice(&self.device_id.to_le_bytes());
-        payload.extend_from_slice(&self.product_id.to_le_bytes());
+        payload.extend_from_slice(&self.device_id.to_be_bytes());
+        payload.extend_from_slice(&self.product_id.to_be_bytes());
         payload.extend_from_slice(&self.serial);
         
         payload
@@ -241,7 +241,7 @@ impl UserInfo {
             return Err(PilotError::InvalidData("UserInfo payload too short".into()));
         }
 
-        let user_id = u32::from_le_bytes([payload[0], payload[1], payload[2], payload[3]]);
+        let user_id = u32::from_be_bytes([payload[0], payload[1], payload[2], payload[3]]);
         
         // Parse null-terminated string
         let mut name_end = 4;

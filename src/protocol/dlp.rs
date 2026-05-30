@@ -465,13 +465,13 @@ impl DlpRequest {
 
     pub fn add_u16(&mut self, val: u16) {
         let mut bytes = vec![0, 0];
-        bytes[0..2].copy_from_slice(&val.to_le_bytes());
+        bytes[0..2].copy_from_slice(&val.to_be_bytes());
         self.add_arg(0x20 + self.args.len() as u8, bytes);
     }
 
     pub fn add_u32(&mut self, val: u32) {
         let mut bytes = vec![0, 0, 0, 0];
-        bytes[0..4].copy_from_slice(&val.to_le_bytes());
+        bytes[0..4].copy_from_slice(&val.to_be_bytes());
         self.add_arg(0x20 + self.args.len() as u8, bytes);
     }
 
@@ -481,7 +481,7 @@ impl DlpRequest {
 
     pub fn add_u64(&mut self, val: u64) {
         let mut bytes = vec![0, 0, 0, 0, 0, 0, 0, 0];
-        bytes.copy_from_slice(&val.to_le_bytes());
+        bytes.copy_from_slice(&val.to_be_bytes());
         self.add_arg(0x20 + self.args.len() as u8, bytes);
     }
 
@@ -627,7 +627,7 @@ impl DlpResponse {
         if data.len() < 2 {
             return Err(PilotError::InvalidArgument);
         }
-        Ok(u16::from_le_bytes([data[0], data[1]]))
+        Ok(u16::from_be_bytes([data[0], data[1]]))
     }
 
     /// Get argument as u32
@@ -636,7 +636,7 @@ impl DlpResponse {
         if data.len() < 4 {
             return Err(PilotError::InvalidArgument);
         }
-        Ok(u32::from_le_bytes([data[0], data[1], data[2], data[3]]))
+        Ok(u32::from_be_bytes([data[0], data[1], data[2], data[3]]))
     }
 
     /// Get argument as i32
@@ -645,7 +645,7 @@ impl DlpResponse {
         if data.len() < 4 {
             return Err(PilotError::InvalidArgument);
         }
-        Ok(i32::from_le_bytes([data[0], data[1], data[2], data[3]]))
+        Ok(i32::from_be_bytes([data[0], data[1], data[2], data[3]]))
     }
 
     /// Get argument as u64
@@ -654,7 +654,7 @@ impl DlpResponse {
         if data.len() < 8 {
             return Err(PilotError::InvalidArgument);
         }
-        Ok(u64::from_le_bytes([
+        Ok(u64::from_be_bytes([
             data[0], data[1], data[2], data[3],
             data[4], data[5], data[6], data[7],
         ]))
@@ -1545,7 +1545,7 @@ impl DlpClient {
         let mut ids = Vec::new();
         for arg in &response.args {
             if arg.data.len() >= 4 {
-                let id = u32::from_le_bytes([arg.data[0], arg.data[1], arg.data[2], arg.data[3]]);
+                let id = u32::from_be_bytes([arg.data[0], arg.data[1], arg.data[2], arg.data[3]]);
                 ids.push(id);
             }
         }
@@ -1852,7 +1852,7 @@ impl DlpClient {
         let mut refs = Vec::new();
         for arg in &response.args {
             if arg.data.len() >= 2 {
-                let vol_ref = u16::from_le_bytes([arg.data[0], arg.data[1]]);
+                let vol_ref = u16::from_be_bytes([arg.data[0], arg.data[1]]);
                 refs.push(VolumeRef::new(vol_ref));
             }
         }
@@ -2252,7 +2252,7 @@ pub fn palm_date_to_system_time(palm_date: &[u8]) -> Result<SystemTime> {
         return Err(PilotError::GenericSystem);
     }
     
-    let seconds = u32::from_le_bytes([
+    let seconds = u32::from_be_bytes([
         palm_date[0], palm_date[1], palm_date[2], palm_date[3]
     ]);
     
@@ -2278,8 +2278,8 @@ pub fn system_time_to_palm_date(time: SystemTime) -> [u8; 8] {
     
     let palm_secs = (unix_secs + PALM_EPOCH_OFFSET) as u32;
     let mut date = [0u8; 8];
-    date[0..4].copy_from_slice(&palm_secs.to_le_bytes());
-    date[4..8].copy_from_slice(&0u32.to_le_bytes()); // No milliseconds
+    date[0..4].copy_from_slice(&palm_secs.to_be_bytes());
+    date[4..8].copy_from_slice(&0u32.to_be_bytes()); // No milliseconds
     date
 }
 
@@ -2325,7 +2325,7 @@ mod tests {
             DlpFunction::OpenDB,
             DlpErrorCode::NoError,
             &[
-                DlpArg::new(0x20, 42u32.to_le_bytes().to_vec()),
+                DlpArg::new(0x20, 42u32.to_be_bytes().to_vec()),
             ],
         );
 
@@ -2354,7 +2354,7 @@ mod tests {
 
     #[test]
     fn test_decode_response_single_arg() {
-        let data_bytes = 3029529600u32.to_le_bytes().to_vec();
+        let data_bytes = 3029529600u32.to_be_bytes().to_vec();
         let response = build_response(
             DlpFunction::GetSysDateTime,
             DlpErrorCode::NoError,
@@ -2387,9 +2387,9 @@ mod tests {
     fn test_encode_decode_multiple_tiny_args() {
         // Build a response with 3 sequential tiny args and verify correct decode
         let args = vec![
-            DlpArg::new(0x20, 1u32.to_le_bytes().to_vec()),
-            DlpArg::new(0x21, 2u32.to_le_bytes().to_vec()),
-            DlpArg::new(0x22, 3u32.to_le_bytes().to_vec()),
+            DlpArg::new(0x20, 1u32.to_be_bytes().to_vec()),
+            DlpArg::new(0x21, 2u32.to_be_bytes().to_vec()),
+            DlpArg::new(0x22, 3u32.to_be_bytes().to_vec()),
         ];
         let response = build_response(DlpFunction::ReadUserInfo, DlpErrorCode::NoError, &args);
         let decoded = DlpResponse::decode(&response).unwrap();
@@ -2738,7 +2738,7 @@ mod tests {
         // Jan 1, 2000 = 3029529600 palm seconds (from 1904)
         let palm_secs: u32 = 3029529600;
         let mut date = [0u8; 8];
-        date[0..4].copy_from_slice(&palm_secs.to_le_bytes());
+        date[0..4].copy_from_slice(&palm_secs.to_be_bytes());
         let result = palm_date_to_system_time(&date).unwrap();
         let expected = UNIX_EPOCH + std::time::Duration::from_secs(946684800); // Jan 1 2000
         assert_eq!(result, expected);
@@ -2748,7 +2748,7 @@ mod tests {
     fn test_palm_date_negative_unix() {
         // Dec 31, 1969 = 2082758400 palm seconds → negative unix
         let palm_secs: u32 = 2082758400;
-        let date = palm_secs.to_le_bytes();
+        let date = palm_secs.to_be_bytes();
         assert!(palm_date_to_system_time(&date).is_err());
     }
 
@@ -2761,7 +2761,7 @@ mod tests {
     fn test_system_time_to_palm_date() {
         let time = UNIX_EPOCH + std::time::Duration::from_secs(946684800);
         let date = system_time_to_palm_date(time);
-        let palm_secs = u32::from_le_bytes([date[0], date[1], date[2], date[3]]);
+        let palm_secs = u32::from_be_bytes([date[0], date[1], date[2], date[3]]);
         assert_eq!(palm_secs, 3029529600);
     }
 }

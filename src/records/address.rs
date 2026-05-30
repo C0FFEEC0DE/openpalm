@@ -107,7 +107,7 @@ impl AddressRecord {
         record.phone_labels[0] = byte3 & 0x0F;
         
         // Parse contents bitmask
-        let contents = u32::from_le_bytes([data[4], data[5], data[6], data[7]]);
+        let contents = u32::from_be_bytes([data[4], data[5], data[6], data[7]]);
         
         // Offset to start of string data
         let mut offset = 9usize;
@@ -173,8 +173,8 @@ impl AddressRecord {
             ((self.phone_labels[4] as u32) << 16) |
             ((self.show_phone as u32) << 20);
         
-        data[0..4].copy_from_slice(&phone_flag.to_le_bytes());
-        data[4..8].copy_from_slice(&contents.to_le_bytes());
+        data[0..4].copy_from_slice(&phone_flag.to_be_bytes());
+        data[4..8].copy_from_slice(&contents.to_be_bytes());
         data[8] = string_start.map(|s| s as u8).unwrap_or(9).saturating_sub(8);
         
         // Write strings
@@ -281,26 +281,42 @@ pub struct AddressAppInfo {
 impl AddressAppInfo {
     /// Parse from app info data
     pub fn from_bytes(data: &[u8]) -> Result<Self> {
-        if data.len() < 4 {
+        if data.len() < 277 {
             return Err(crate::error::PilotError::DlpBufSize);
         }
-        
-        let mut info = Self::default();
-        info.last_unique_id = u16::from_be_bytes([data[0], data[1]]);
-        info.country = u16::from_be_bytes([data[2], data[3]]);
-        
-        // Category data starts at offset 4
-        if data.len() > 4 {
-            info.reserved = data[4..].to_vec();
-        }
-        
-        Ok(info)
+
+        let (categories, last_uniq_id, rest) = crate::database::parse_categories(data)?;
+        let country = u16::from_be_bytes([rest[0], rest[1]]);
+
+        Ok(Self {
+            categories,
+            last_unique_id: last_uniq_id as u16,
+            country,
+            reserved: rest[2..].to_vec(),
+        })
     }
-    
+
     /// Convert to bytes
     pub fn to_bytes(&self) -> Vec<u8> {
-        let mut data = Vec::with_capacity(4 + self.reserved.len());
-        data.extend_from_slice(&self.last_unique_id.to_be_bytes());
+        let mut data = Vec::with_capacity(277 + self.reserved.len());
+        // renamedCategories bitfield
+        let mut renamed: u16 = 0;
+        for (i, cat) in self.categories.iter().enumerate() {
+            if cat.flags != 0 {
+                renamed |= 1 << i;
+            }
+        }
+        data.extend_from_slice(&renamed.to_be_bytes());
+        // Category labels
+        for cat in &self.categories {
+            data.extend_from_slice(&cat.name);
+        }
+        // Category unique IDs
+        for cat in &self.categories {
+            data.push(cat.reserved);
+        }
+        data.push(self.last_unique_id as u8);
+        // Country code
         data.extend_from_slice(&self.country.to_be_bytes());
         data.extend_from_slice(&self.reserved);
         data
@@ -331,6 +347,34 @@ mod tests {
         assert_eq!(unpacked.get(AddressEntry::LastName), Some("Doe"));
         assert_eq!(unpacked.get(AddressEntry::FirstName), Some("John"));
         assert_eq!(unpacked.get(AddressEntry::Email1), Some("john@example.com"));
+    }
+
+    #[test]
+    fn test_address_app_info_categories() {
+        // Build a Palm OS category AppInfo block (275 bytes)
+        let mut data = vec![0u8; 275];
+        // renamedCategories bitfield (2 bytes, big-endian)
+        data[0..2].copy_from_slice(&0x0003u16.to_be_bytes()); // categories 0 and 1 renamed
+        // Category 0 label: "Personal" at offset 2
+        data[2..10].copy_from_slice(b"Personal");
+        // Category 1 label: "Business" at offset 18
+        data[18..26].copy_from_slice(b"Business");
+        // Category unique IDs at offset 258
+        data[258] = 1; // cat 0 uniq id
+        data[259] = 2; // cat 1 uniq id
+        // lastUniqID at offset 274
+        data[274] = 3;
+        // Country code follows at offset 275 (2 bytes)
+        data.extend_from_slice(&0x0001u16.to_be_bytes());
+
+        let info = AddressAppInfo::from_bytes(&data).unwrap();
+        assert_eq!(info.categories.len(), 16);
+        assert_eq!(info.categories[0].id, 0);
+        assert_eq!(String::from_utf8_lossy(&info.categories[0].name).trim_end_matches('\0'), "Personal");
+        assert_eq!(info.categories[1].id, 1);
+        assert_eq!(String::from_utf8_lossy(&info.categories[1].name).trim_end_matches('\0'), "Business");
+        assert_eq!(info.last_unique_id, 3);
+        assert_eq!(info.country, 1);
     }
 
     #[test]

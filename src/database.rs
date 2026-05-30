@@ -274,7 +274,7 @@ impl RecordEntry {
     /// Get the full record ID from unique_id
     pub fn record_id(&self) -> RecordId {
         // Record ID is based on unique ID allocation algorithm
-        u32::from_le_bytes([self.unique_id[0], self.unique_id[1], self.unique_id[2], 0])
+        u32::from_be_bytes([0, self.unique_id[0], self.unique_id[1], self.unique_id[2]])
     }
 }
 
@@ -335,6 +335,34 @@ pub struct Category {
     pub flags: u8,
     /// Reserved
     pub reserved: u8,
+}
+
+/// Parse Palm OS AppInfo category block (275 bytes).
+/// Returns (categories, last_uniq_id, remaining_data_after_categories).
+pub fn parse_categories(data: &[u8]) -> crate::error::Result<(Vec<Category>, u8, &[u8])> {
+    if data.len() < 275 {
+        return Err(crate::error::PilotError::DlpBufSize);
+    }
+
+    let renamed = u16::from_be_bytes([data[0], data[1]]);
+    let mut categories = Vec::with_capacity(16);
+
+    for i in 0..16 {
+        let offset = 2 + i * 16;
+        let mut name = [0u8; 16];
+        name.copy_from_slice(&data[offset..offset + 16]);
+        let uniq_id = data[258 + i];
+        let flags = if (renamed & (1 << i)) != 0 { 1 } else { 0 };
+        categories.push(Category {
+            id: i as u8,
+            name,
+            flags,
+            reserved: uniq_id,
+        });
+    }
+
+    let last_uniq_id = data[274];
+    Ok((categories, last_uniq_id, &data[275..]))
 }
 
 
