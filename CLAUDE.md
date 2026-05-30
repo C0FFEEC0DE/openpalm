@@ -82,12 +82,9 @@ Many AppInfo blocks (Address, Datebook, Todo, Memo, etc.) share a 275-byte categ
 
 Integration tests live in `tests/mock_integration.rs` and exercise `PilotSocket → DlpClient → MockConnection`.
 
-## Known Limitations (from `docs/DLP_SPEC.md`)
+## Known Limitations
 
-- `DlpArg` long-format encode marker uses `0x40` instead of `0xC0`. Arguments >16383 bytes are silently truncated.
-- `read_db_list` returns hardcoded-zero metadata for most fields (only name, flags, db_type are populated).
-- `send_request` body-read loop retries on `WouldBlock` without a timeout guard — a permanently stalled transport loops forever.
-- Seven wrapper methods return partial hardcoded metadata: `read_sys_info`, `read_storage_info`, `read_open_db_info`, `read_net_sync_info`, `exp_card_info`, `vfs_volume_size`, `vfs_custom_control`.
+See `ISSUES.md` for the current issue tracker. As of 2026-05-30 all previously-documented DLP protocol and metadata bugs have been resolved (commits `95bd785` and `e6e24be`).
 
 ## System Dependencies
 
