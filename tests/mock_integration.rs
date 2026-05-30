@@ -108,7 +108,7 @@ async fn test_error_response_trailing_data_consumed() {
     // Allow second response to be read (must clear limit on the DlpClient's transport clone)
     {
         let client = socket.dlp().unwrap();
-        client.with_transport_mut(|conn| {
+        let _ = client.with_transport_mut(|conn| {
             if let TransportConnection::Mock(mock) = conn {
                 mock.clear_read_limit();
             }
