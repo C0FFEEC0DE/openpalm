@@ -776,7 +776,10 @@ impl DlpClient {
     where
         F: FnOnce(&mut TransportConnection) -> R,
     {
-        let mut guard = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
+        let mut guard = self
+            .transport
+            .lock()
+            .map_err(|_| PilotError::SyncPoisoned)?;
         Ok(f(&mut guard))
     }
 
@@ -808,7 +811,10 @@ impl DlpClient {
         use std::io::{Read, Write};
         use std::time::{Duration, Instant};
 
-        let mut transport = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
+        let mut transport = self
+            .transport
+            .lock()
+            .map_err(|_| PilotError::SyncPoisoned)?;
 
         // Encode the request
         let data = request.encode();
@@ -853,7 +859,10 @@ impl DlpClient {
                     // Yield to the async runtime rather than spinning CPU.
                     drop(transport);
                     tokio::time::sleep(Duration::from_millis(1)).await;
-                    transport = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
+                    transport = self
+                        .transport
+                        .lock()
+                        .map_err(|_| PilotError::SyncPoisoned)?;
                     continue;
                 }
                 Err(_) => return Err(PilotError::SockIo),
@@ -1192,7 +1201,8 @@ impl DlpClient {
         if response.args.len() % ARGS_PER_DB != 0 {
             return Err(PilotError::InvalidData(format!(
                 "ReadDBList response has {} args, expected a multiple of {}",
-                response.args.len(), ARGS_PER_DB
+                response.args.len(),
+                ARGS_PER_DB
             )));
         }
 
@@ -1933,7 +1943,7 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
         if response.args.len() < 2 {
             return Err(PilotError::InvalidData(
-                "VFSVolumeSize response too short".into()
+                "VFSVolumeSize response too short".into(),
             ));
         }
         let used = response.get_u32(0)?;
@@ -2309,14 +2319,14 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
         if response.args.len() < 2 {
             return Err(PilotError::InvalidData(
-                "ExpCardInfo response too short".into()
+                "ExpCardInfo response too short".into(),
             ));
         }
         let flags = response.get_u32(0)?;
         let num_strings = response.get_u8(1)?;
         if response.args.len() < 2 + num_strings as usize {
             return Err(PilotError::InvalidData(
-                "ExpCardInfo string count mismatch".into()
+                "ExpCardInfo string count mismatch".into(),
             ));
         }
         let mut strings = Vec::new();

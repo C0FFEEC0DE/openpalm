@@ -117,12 +117,18 @@ impl<T> AsyncConnectionAdapter<T> {
 #[async_trait]
 impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<T> {
     async fn connect_async(&mut self) -> crate::error::Result<()> {
-        let mut guard = self.inner.lock().map_err(|_| crate::error::PilotError::SyncPoisoned)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| crate::error::PilotError::SyncPoisoned)?;
         guard.connect()
     }
 
     async fn disconnect_async(&mut self) -> crate::error::Result<()> {
-        let mut guard = self.inner.lock().map_err(|_| crate::error::PilotError::SyncPoisoned)?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| crate::error::PilotError::SyncPoisoned)?;
         guard.disconnect()
     }
 
@@ -135,17 +141,26 @@ impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<
     }
 
     async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.read(buf)
     }
 
     async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.write(buf)
     }
 
     async fn flush_async(&mut self) -> std::io::Result<()> {
-        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.flush()
     }
 }

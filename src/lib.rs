@@ -80,6 +80,9 @@ pub use utils::{
     checksum,
     crc16,
     crc32,
+    // String utilities
+    decode_palm_string,
+    encode_palm_string,
     get_pilot_rate,
     hex_to_bytes,
     make_fourcc,
@@ -88,9 +91,6 @@ pub use utils::{
     pack_string_list,
     pad_to_align,
     parse_lpstring,
-    // String utilities
-    decode_palm_string,
-    encode_palm_string,
     parse_pstring,
     parse_string_list,
     pilot_rate_env,

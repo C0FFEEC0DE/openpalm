@@ -283,7 +283,9 @@ impl fmt::Display for PilotError {
             PilotError::Timeout => write!(f, "Operation timed out"),
             PilotError::Unknown => write!(f, "Unknown error"),
             PilotError::Unimplemented => write!(f, "Not implemented"),
-            PilotError::SyncPoisoned => write!(f, "Sync primitive poisoned by panic in another task"),
+            PilotError::SyncPoisoned => {
+                write!(f, "Sync primitive poisoned by panic in another task")
+            }
         }
     }
 }
