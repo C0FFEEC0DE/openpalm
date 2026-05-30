@@ -118,10 +118,10 @@ impl NotepadRecord {
         data.extend_from_slice(&(self.id as u16).to_be_bytes());
 
         // Note text (Palm Notepad uses a single byte length, max 255)
-        let text_bytes = self.note_text.as_bytes();
-        let truncated = &text_bytes[..std::cmp::min(text_bytes.len(), 255)];
-        data.push(truncated.len() as u8);
-        data.extend_from_slice(truncated);
+        let text_bytes = crate::utils::encode_palm_string(&self.note_text);
+        let truncated_len = std::cmp::min(text_bytes.len(), 255);
+        data.push(truncated_len as u8);
+        data.extend_from_slice(&text_bytes[..truncated_len]);
 
         data
     }

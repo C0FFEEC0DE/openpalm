@@ -19,6 +19,28 @@ pub fn decode_palm_string(bytes: &[u8]) -> String {
     }
 }
 
+/// Encode a UTF-8 Rust string to CP1252 (Windows Western) bytes.
+/// Characters that cannot be represented in CP1252 are replaced with `'?'`.
+pub fn encode_palm_string(src: &str) -> Vec<u8> {
+    let (cow, _encoding_used, had_errors) = encoding_rs::WINDOWS_1252.encode(src);
+    if had_errors {
+        // Manually encode character-by-character so unmappable chars become '?'.
+        let mut result = Vec::with_capacity(src.len());
+        for ch in src.chars() {
+            let ch_str = ch.to_string();
+            let (encoded, _, err) = encoding_rs::WINDOWS_1252.encode(&ch_str);
+            if err {
+                result.push(b'?');
+            } else {
+                result.extend_from_slice(&encoded);
+            }
+        }
+        result
+    } else {
+        cow.into_owned()
+    }
+}
+
 /// Parse a null-terminated string from byte data
 ///
 /// # Arguments
@@ -245,6 +267,22 @@ mod tests {
         let bytes2 = b"\x91Hello\x92"; // ‘Hello’ (smart quotes)
         let s2 = decode_palm_string(bytes2);
         assert_eq!(s2, "\u{2018}Hello\u{2019}"); // U+2018/U+2019 left/right single quotation marks
+    }
+
+    #[test]
+    fn test_encode_palm_cp1252() {
+        let encoded = encode_palm_string("€");
+        assert_eq!(encoded, vec![0x80]);
+
+        let encoded2 = encode_palm_string("Helloäöü");
+        assert_eq!(encoded2, b"Hello\xE4\xF6\xFC");
+    }
+
+    #[test]
+    fn test_encode_palm_replacement() {
+        // Greek alpha (α) is not in CP1252 → should be replaced
+        let encoded = encode_palm_string("α");
+        assert_eq!(encoded, vec![b'?']);
     }
 
     #[test]

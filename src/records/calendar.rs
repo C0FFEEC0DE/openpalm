@@ -339,17 +339,17 @@ impl CalendarEvent {
 
         // Strings
         if let Some(ref desc) = self.description {
-            data.extend_from_slice(desc.as_bytes());
+            data.extend_from_slice(&crate::utils::encode_palm_string(desc));
             data.push(0);
         }
 
         if let Some(ref note) = self.note {
-            data.extend_from_slice(note.as_bytes());
+            data.extend_from_slice(&crate::utils::encode_palm_string(note));
             data.push(0);
         }
 
         if let Some(ref loc) = self.location {
-            data.extend_from_slice(loc.as_bytes());
+            data.extend_from_slice(&crate::utils::encode_palm_string(loc));
             data.push(0);
         }
 

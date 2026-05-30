@@ -179,8 +179,8 @@ impl AddressRecord {
         // Write strings
         let mut offset = 9;
         for s in self.entry.iter().flatten() {
-            let bytes = s.as_bytes();
-            data[offset..offset + bytes.len()].copy_from_slice(bytes);
+            let bytes = crate::utils::encode_palm_string(s);
+            data[offset..offset + bytes.len()].copy_from_slice(&bytes);
             offset += bytes.len();
             data[offset] = 0;
             offset += 1;

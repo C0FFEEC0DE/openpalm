@@ -302,7 +302,8 @@ impl NetHandler {
         let conn = NetConnection::new(id, protocol, local_port, remote_port);
         self.connections.push(conn);
 
-        self.connections.last_mut().unwrap()
+        // Safety: we literally just pushed the element above, so the vector cannot be empty.
+        self.connections.last_mut().expect("just pushed")
     }
 
     /// Get connection by ID
@@ -428,5 +429,31 @@ mod tests {
 
         handler.close_connection(1);
         assert!(handler.get_connection(1).is_none());
+    }
+
+    #[test]
+    fn test_create_connection_returns_last_pushed() {
+        let mut handler = NetHandler::new();
+
+        {
+            let first = handler.create_connection(constants::NET_PROTO_TCP, 1111, 2222);
+            assert_eq!(first.id, 1);
+            assert_eq!(first.protocol, constants::NET_PROTO_TCP);
+            assert_eq!(first.local_port, 1111);
+            assert_eq!(first.remote_port, 2222);
+        }
+
+        {
+            let second = handler.create_connection(constants::NET_PROTO_UDP, 3333, 4444);
+            assert_eq!(second.id, 2);
+            assert_eq!(second.protocol, constants::NET_PROTO_UDP);
+            assert_eq!(second.local_port, 3333);
+            assert_eq!(second.remote_port, 4444);
+        }
+
+        // Ensure both connections are stored in the handler.
+        assert_eq!(handler.connections.len(), 2);
+        assert_eq!(handler.connections[0].id, 1);
+        assert_eq!(handler.connections[1].id, 2);
     }
 }

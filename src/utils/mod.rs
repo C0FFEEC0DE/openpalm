@@ -19,8 +19,8 @@ pub use sys::{
 
 // Re-export string utilities
 pub use strings::{
-    decode_palm_string, pack_lpstring, pack_pstring, pack_string_list, parse_lpstring,
-    parse_pstring, parse_string_list, pstring_size, string_list_size,
+    decode_palm_string, encode_palm_string, pack_lpstring, pack_pstring, pack_string_list,
+    parse_lpstring, parse_pstring, parse_string_list, pstring_size, string_list_size,
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

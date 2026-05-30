@@ -161,12 +161,12 @@ impl TodoRecord {
         data.push(priority_byte);
 
         // Description
-        data.extend_from_slice(self.description.as_bytes());
+        data.extend_from_slice(&crate::utils::encode_palm_string(&self.description));
         data.push(0);
 
         // Note
         if let Some(ref note) = self.note {
-            data.extend_from_slice(note.as_bytes());
+            data.extend_from_slice(&crate::utils::encode_palm_string(note));
             data.push(0);
         }
 

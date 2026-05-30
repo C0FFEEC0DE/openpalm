@@ -117,12 +117,12 @@ impl<T> AsyncConnectionAdapter<T> {
 #[async_trait]
 impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<T> {
     async fn connect_async(&mut self) -> crate::error::Result<()> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().map_err(|_| crate::error::PilotError::SyncPoisoned)?;
         guard.connect()
     }
 
     async fn disconnect_async(&mut self) -> crate::error::Result<()> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().map_err(|_| crate::error::PilotError::SyncPoisoned)?;
         guard.disconnect()
     }
 
@@ -135,17 +135,17 @@ impl<T: Connection + Send + 'static> AsyncConnection for AsyncConnectionAdapter<
     }
 
     async fn read_async(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.read(buf)
     }
 
     async fn write_async(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.write(buf)
     }
 
     async fn flush_async(&mut self) -> std::io::Result<()> {
-        let mut guard = self.inner.lock().unwrap();
+        let mut guard = self.inner.lock().map_err(|_| std::io::Error::other("mutex poisoned"))?;
         guard.flush()
     }
 }
@@ -184,6 +184,8 @@ pub struct MockConnection {
     /// Optional hard limit on total bytes readable before returning Ok(0).
     /// Simulates end-of-packet; call clear_read_limit() to allow further reads.
     read_limit: Option<usize>,
+    /// When true and the read buffer is exhausted, return WouldBlock instead of Ok(0).
+    wouldblock_on_empty: bool,
 }
 
 impl MockConnection {
@@ -196,6 +198,7 @@ impl MockConnection {
             read_pos: 0,
             chunk_size: usize::MAX,
             read_limit: None,
+            wouldblock_on_empty: false,
         }
     }
 
@@ -208,6 +211,7 @@ impl MockConnection {
             read_pos: 0,
             chunk_size: usize::MAX,
             read_limit: None,
+            wouldblock_on_empty: false,
         }
     }
 
@@ -241,6 +245,11 @@ impl MockConnection {
     /// Clear the read limit so all remaining data can be read.
     pub fn clear_read_limit(&mut self) {
         self.read_limit = None;
+    }
+
+    /// When true, read() returns WouldBlock instead of Ok(0) when the buffer is exhausted.
+    pub fn set_wouldblock_on_empty(&mut self, value: bool) {
+        self.wouldblock_on_empty = value;
     }
 }
 
@@ -277,6 +286,12 @@ impl Read for MockConnection {
 
         let effective_len = self.read_limit.unwrap_or(self.read_buffer.len());
         if self.read_pos >= effective_len {
+            if self.wouldblock_on_empty {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::WouldBlock,
+                    "mock would block",
+                ));
+            }
             return Ok(0);
         }
 

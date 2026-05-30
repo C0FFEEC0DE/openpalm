@@ -94,6 +94,8 @@ pub enum PilotError {
     Unknown,
     /// Not implemented yet
     Unimplemented,
+    /// Mutex/cell poisoned by panic in another task
+    SyncPoisoned,
 }
 
 impl PilotError {
@@ -129,6 +131,7 @@ impl PilotError {
             -506 => PilotError::RecordNotFound,
             -507 => PilotError::InvalidArgument,
             -508 => PilotError::Timeout,
+            -509 => PilotError::SyncPoisoned,
             _ => PilotError::Unknown,
         }
     }
@@ -169,7 +172,8 @@ impl PilotError {
             | PilotError::DatabaseNotFound
             | PilotError::RecordNotFound
             | PilotError::InvalidArgument
-            | PilotError::Timeout => -500,
+            | PilotError::Timeout
+            | PilotError::SyncPoisoned => -500,
 
             PilotError::DlpError(_) => -301,
             PilotError::VfsError(_) => -300,
@@ -279,6 +283,7 @@ impl fmt::Display for PilotError {
             PilotError::Timeout => write!(f, "Operation timed out"),
             PilotError::Unknown => write!(f, "Unknown error"),
             PilotError::Unimplemented => write!(f, "Not implemented"),
+            PilotError::SyncPoisoned => write!(f, "Sync primitive poisoned by panic in another task"),
         }
     }
 }

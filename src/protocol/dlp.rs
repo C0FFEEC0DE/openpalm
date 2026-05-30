@@ -426,7 +426,7 @@ impl DlpArg {
             result.push(data_len as u8);
             result.push(self.id);
         } else {
-            // Long format: 0b01TTTTTT | TTTTTTTT | TTTTTTTT | TTTTTTTT | id
+            // Long format: 0b11TTTTTT | TTTTTTTT | TTTTTTTT | TTTTTTTT | id
             result.push(0xC0 | ((data_len >> 24) as u8));
             result.push((data_len >> 16) as u8);
             result.push((data_len >> 8) as u8);
@@ -772,12 +772,12 @@ impl DlpClient {
     }
 
     /// Access the underlying transport mutably via a callback.
-    pub fn with_transport_mut<F, R>(&self, f: F) -> R
+    pub fn with_transport_mut<F, R>(&self, f: F) -> Result<R>
     where
         F: FnOnce(&mut TransportConnection) -> R,
     {
-        let mut guard = self.transport.lock().unwrap();
-        f(&mut guard)
+        let mut guard = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
+        Ok(f(&mut guard))
     }
 
     /// Set the protocol version
@@ -795,11 +795,20 @@ impl DlpClient {
         self.max_record_size
     }
 
+    /// Body-read timeout for `send_request`.
+    #[cfg(test)]
+    const BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(100);
+    /// Body-read timeout for `send_request`.
+    #[cfg(not(test))]
+    const BODY_READ_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
     /// Send a DLP request and receive response
+    #[allow(clippy::await_holding_lock)]
     async fn send_request(&self, request: &DlpRequest) -> Result<DlpResponse> {
         use std::io::{Read, Write};
+        use std::time::{Duration, Instant};
 
-        let mut transport = self.transport.lock().unwrap();
+        let mut transport = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
 
         // Encode the request
         let data = request.encode();
@@ -827,8 +836,7 @@ impl DlpClient {
         let mut body = Vec::new();
         let max_body_size = 0x1000000usize; // 16MB limit
         let mut buf = [0u8; 1024];
-        const MAX_WOULDBLOCK_RETRIES: u32 = 10_000;
-        let mut wouldblock_count: u32 = 0;
+        let deadline = Instant::now() + Self::BODY_READ_TIMEOUT;
         loop {
             if body.len() >= max_body_size {
                 break;
@@ -837,15 +845,15 @@ impl DlpClient {
                 Ok(0) => break,
                 Ok(n) => {
                     body.extend_from_slice(&buf[..n]);
-                    wouldblock_count = 0;
                 }
                 Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => {
-                    wouldblock_count += 1;
-                    if wouldblock_count > MAX_WOULDBLOCK_RETRIES {
+                    if Instant::now() > deadline {
                         return Err(PilotError::SockTimeout);
                     }
-                    // Use std::thread::yield_now to yield without blocking the async runtime
-                    std::thread::yield_now();
+                    // Yield to the async runtime rather than spinning CPU.
+                    drop(transport);
+                    tokio::time::sleep(Duration::from_millis(1)).await;
+                    transport = self.transport.lock().map_err(|_| PilotError::SyncPoisoned)?;
                     continue;
                 }
                 Err(_) => return Err(PilotError::SockIo),
@@ -923,9 +931,8 @@ impl DlpClient {
         let prod_id_len = response.get_u8(2)?;
         let prod_id = response.get_string(3)?;
 
-        // DLP version info (optional in response)
-        let dlp_major = response.get_u16(4).unwrap_or(1);
-        let dlp_minor = response.get_u16(5).unwrap_or(4);
+        let dlp_major = response.get_u16(4)?;
+        let dlp_minor = response.get_u16(5)?;
 
         Ok(SystemInfo {
             rom_version,
@@ -957,14 +964,24 @@ impl DlpClient {
 
         let response = self.send_request(&req).await?;
 
-        // Parse based on StorageInfo struct fields
-        // version, rom_size, ram_size, ram_free, name, manufacturer, creation_date
-        let version = response.get_i32(0).unwrap_or(0);
-        let rom_size = response.get_u32(1).unwrap_or(0);
-        let ram_size = response.get_u32(2).unwrap_or(0);
-        let ram_free = response.get_u32(3).unwrap_or(0);
-        let name = response.get_string(4).unwrap_or_default();
-        let manufacturer = response.get_string(5).unwrap_or_default();
+        // Parse based on StorageInfo struct fields (DLP 1.4: 6 required + 1 optional)
+        if response.args.len() < 6 {
+            return Err(PilotError::InvalidData(format!(
+                "ReadStorageInfo response has {} args, expected at least 6",
+                response.args.len()
+            )));
+        }
+        let version = response.get_i32(0)?;
+        let rom_size = response.get_u32(1)?;
+        let ram_size = response.get_u32(2)?;
+        let ram_free = response.get_u32(3)?;
+        let name = response.get_string(4)?;
+        let manufacturer = response.get_string(5)?;
+        let creation_date = if response.args.len() > 6 {
+            Some(PalmDateTime::from_palm_time(response.get_u32(6)?))
+        } else {
+            None
+        };
 
         Ok(StorageInfo {
             version,
@@ -973,7 +990,7 @@ impl DlpClient {
             ram_free,
             name,
             manufacturer,
-            creation_date: None,
+            creation_date,
         })
     }
 
@@ -1170,41 +1187,37 @@ impl DlpClient {
         let response = self.send_request(&req).await?;
 
         // Parse database list from response.
-        // Each database entry spans multiple consecutive args. The exact count
-        // varies by DLP version (typically 13-14 args per entry). We parse in
-        // chunks of ARGS_PER_DB, with per-field fallbacks for version differences.
+        // DLP 1.4 defines exactly 14 args per database entry.
         const ARGS_PER_DB: usize = 14;
-        let mut databases = Vec::new();
-        let mut db_offset = 0;
+        if response.args.len() % ARGS_PER_DB != 0 {
+            return Err(PilotError::InvalidData(format!(
+                "ReadDBList response has {} args, expected a multiple of {}",
+                response.args.len(), ARGS_PER_DB
+            )));
+        }
 
-        while db_offset + ARGS_PER_DB <= response.args.len() {
+        let mut databases = Vec::new();
+        for db_offset in (0..response.args.len()).step_by(ARGS_PER_DB) {
             let info = DatabaseInfo {
-                name: response.get_string(db_offset).unwrap_or_default(),
-                flags: DatabaseFlags::from_bits_truncate(
-                    response.get_u16(db_offset + 1).unwrap_or(0),
-                ),
-                db_type: FourCharCode::from_u32(response.get_u32(db_offset + 2).unwrap_or(0)),
-                creator: FourCharCode::from_u32(response.get_u32(db_offset + 3).unwrap_or(0)),
-                card_no: response.get_u8(db_offset + 4).unwrap_or(0),
-                db_id: response.get_u32(db_offset + 5).unwrap_or(0),
-                created: PalmDateTime::from_palm_time(response.get_u32(db_offset + 6).unwrap_or(0)),
-                modified: PalmDateTime::from_palm_time(
-                    response.get_u32(db_offset + 7).unwrap_or(0),
-                ),
-                backup_date: PalmDateTime::from_palm_time(
-                    response.get_u32(db_offset + 8).unwrap_or(0),
-                ),
-                mod_num: response.get_u32(db_offset + 9).unwrap_or(0),
-                total_bytes: response.get_u32(db_offset + 10).unwrap_or(0),
-                data_bytes: response.get_u32(db_offset + 11).unwrap_or(0),
-                num_records: response.get_u16(db_offset + 12).unwrap_or(0) as u32,
-                unique_id_seed: response.get_u32(db_offset + 13).unwrap_or(0),
+                name: response.get_string(db_offset)?,
+                flags: DatabaseFlags::from_bits_truncate(response.get_u16(db_offset + 1)?),
+                db_type: FourCharCode::from_u32(response.get_u32(db_offset + 2)?),
+                creator: FourCharCode::from_u32(response.get_u32(db_offset + 3)?),
+                card_no: response.get_u8(db_offset + 4)?,
+                db_id: response.get_u32(db_offset + 5)?,
+                created: PalmDateTime::from_palm_time(response.get_u32(db_offset + 6)?),
+                modified: PalmDateTime::from_palm_time(response.get_u32(db_offset + 7)?),
+                backup_date: PalmDateTime::from_palm_time(response.get_u32(db_offset + 8)?),
+                mod_num: response.get_u32(db_offset + 9)?,
+                total_bytes: response.get_u32(db_offset + 10)?,
+                data_bytes: response.get_u32(db_offset + 11)?,
+                num_records: response.get_u16(db_offset + 12)? as u32,
+                unique_id_seed: response.get_u32(db_offset + 13)?,
                 app_info_dirty: false,
                 sort_info_dirty: false,
             };
 
             databases.push(info);
-            db_offset += ARGS_PER_DB;
         }
 
         Ok(databases)
@@ -1314,34 +1327,31 @@ impl DlpClient {
         req.add_u32(handle as u32);
 
         let response = self.send_request(&req).await?;
+        if response.args.len() < 14 {
+            return Err(PilotError::InvalidData(format!(
+                "ReadOpenDBInfo response has {} args, expected at least 14",
+                response.args.len()
+            )));
+        }
 
-        let num_recs = response.get_u32(0).unwrap_or(0);
-        let db_info = if response.args.len() > 1 {
-            DatabaseInfo {
-                name: response.get_string(1).unwrap_or_default(),
-                flags: DatabaseFlags::from_bits_truncate(response.get_u16(2).unwrap_or(0)),
-                db_type: FourCharCode::from_u32(response.get_u32(3).unwrap_or(0)),
-                creator: FourCharCode::from_u32(response.get_u32(4).unwrap_or(0)),
-                card_no: response.get_u8(5).unwrap_or(card_no),
-                db_id: response.get_u32(6).unwrap_or(handle as u32),
-                created: PalmDateTime::from_palm_time(response.get_u32(7).unwrap_or(0)),
-                modified: PalmDateTime::from_palm_time(response.get_u32(8).unwrap_or(0)),
-                backup_date: PalmDateTime::from_palm_time(response.get_u32(9).unwrap_or(0)),
-                mod_num: response.get_u32(10).unwrap_or(0),
-                total_bytes: response.get_u32(11).unwrap_or(0),
-                data_bytes: response.get_u32(12).unwrap_or(0),
-                num_records: num_recs,
-                unique_id_seed: response.get_u32(13).unwrap_or(0),
-                app_info_dirty: false,
-                sort_info_dirty: false,
-            }
-        } else {
-            DatabaseInfo {
-                num_records: num_recs,
-                card_no,
-                db_id: handle as u32,
-                ..Default::default()
-            }
+        let num_recs = response.get_u32(0)?;
+        let db_info = DatabaseInfo {
+            name: response.get_string(1)?,
+            flags: DatabaseFlags::from_bits_truncate(response.get_u16(2)?),
+            db_type: FourCharCode::from_u32(response.get_u32(3)?),
+            creator: FourCharCode::from_u32(response.get_u32(4)?),
+            card_no: response.get_u8(5)?,
+            db_id: response.get_u32(6)?,
+            created: PalmDateTime::from_palm_time(response.get_u32(7)?),
+            modified: PalmDateTime::from_palm_time(response.get_u32(8)?),
+            backup_date: PalmDateTime::from_palm_time(response.get_u32(9)?),
+            mod_num: response.get_u32(10)?,
+            total_bytes: response.get_u32(11)?,
+            data_bytes: response.get_u32(12)?,
+            num_records: response.get_u16(13)? as u32,
+            unique_id_seed: 0, // Not returned by ReadOpenDBInfo
+            app_info_dirty: false,
+            sort_info_dirty: false,
         };
 
         Ok((num_recs, db_info))
@@ -1731,11 +1741,10 @@ impl DlpClient {
     pub async fn read_net_sync_info(&self) -> Result<Vec<u8>> {
         let req = DlpRequest::new(DlpFunction::ReadNetSyncInfo);
         let response = self.send_request(&req).await?;
-        let data = response
-            .args
-            .first()
-            .map(|a| a.data.clone())
-            .unwrap_or_default();
+        let mut data = Vec::new();
+        for arg in &response.args {
+            data.extend_from_slice(&arg.data);
+        }
         Ok(data)
     }
 
@@ -1922,8 +1931,13 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::VFSVolumeSize);
         req.add_u16(vol_ref.value());
         let response = self.send_request(&req).await?;
-        let used = response.get_u32(0).unwrap_or(0);
-        let total = response.get_u32(1).unwrap_or(0);
+        if response.args.len() < 2 {
+            return Err(PilotError::InvalidData(
+                "VFSVolumeSize response too short".into()
+            ));
+        }
+        let used = response.get_u32(0)?;
+        let total = response.get_u32(1)?;
         Ok((used, total))
     }
 
@@ -2174,11 +2188,11 @@ impl DlpClient {
         req.add_u16(cmd);
         req.add_bytes(input);
         let response = self.send_request(&req).await?;
-        Ok(response
-            .args
-            .first()
-            .map(|a| a.data.clone())
-            .unwrap_or_default())
+        let mut data = Vec::new();
+        for arg in &response.args {
+            data.extend_from_slice(&arg.data);
+        }
+        Ok(data)
     }
 
     /// Get VFS default directory
@@ -2293,12 +2307,21 @@ impl DlpClient {
         let mut req = DlpRequest::new(DlpFunction::ExpCardInfo);
         req.add_u16(slot_ref);
         let response = self.send_request(&req).await?;
-        let flags = response.get_u32(0).unwrap_or(0);
-        let num_strings = response.get_u8(1).unwrap_or(0);
+        if response.args.len() < 2 {
+            return Err(PilotError::InvalidData(
+                "ExpCardInfo response too short".into()
+            ));
+        }
+        let flags = response.get_u32(0)?;
+        let num_strings = response.get_u8(1)?;
+        if response.args.len() < 2 + num_strings as usize {
+            return Err(PilotError::InvalidData(
+                "ExpCardInfo string count mismatch".into()
+            ));
+        }
         let mut strings = Vec::new();
         for i in 0..num_strings {
-            let s = response.get_string(i as usize + 2).unwrap_or_default();
-            strings.push(s);
+            strings.push(response.get_string(i as usize + 2)?);
         }
         Ok((flags, strings))
     }
@@ -2742,6 +2765,20 @@ mod tests {
     }
 
     #[test]
+    fn test_long_format_roundtrip_20000_bytes() {
+        // Round-trip a 20 000-byte argument through encode → decode.
+        let original = DlpArg::new(0x25, vec![0xBB; 20_000]);
+        let encoded = original.encode();
+        assert_eq!(encoded[0] & 0xC0, 0xC0, "must use long format");
+
+        let (decoded, consumed) = DlpResponse::decode_arg(&encoded, 0).unwrap();
+        assert_eq!(consumed, encoded.len());
+        assert_eq!(decoded.id, 0x25);
+        assert_eq!(decoded.data.len(), 20_000);
+        assert_eq!(decoded.data, original.data);
+    }
+
+    #[test]
     fn test_decode_arg_tiny_id() {
         // Tiny format: id is implicit from position (0x20 + index).
         // For index 0: decoded id = 0x20 regardless of original id or data_len.
@@ -2917,5 +2954,90 @@ mod tests {
         let date = system_time_to_palm_date(time);
         let palm_secs = u32::from_be_bytes([date[0], date[1], date[2], date[3]]);
         assert_eq!(palm_secs, 3029529600);
+    }
+
+    #[tokio::test]
+    async fn test_send_request_body_timeout() {
+        use crate::transport::{Connection, MockConnection};
+
+        // Build a 4-byte DLP header with no body.
+        let header = vec![
+            DlpFunction::ReadSysInfo as u8, // function
+            0,                              // argc = 0
+            0,                              // error = 0
+            0,                              // flags
+        ];
+        let mut mock = MockConnection::with_data(header);
+        mock.connect().unwrap();
+        mock.set_wouldblock_on_empty(true);
+
+        let client = DlpClient::new(TransportConnection::Mock(mock));
+        let req = DlpRequest::new(DlpFunction::ReadSysInfo);
+
+        let start = std::time::Instant::now();
+        let result = client.execute(&req).await;
+        let elapsed = start.elapsed();
+
+        assert!(
+            matches!(result, Err(PilotError::SockTimeout)),
+            "expected SockTimeout, got {:?}",
+            result
+        );
+        // Must fail within the test timeout (100 ms) plus a small margin.
+        assert!(
+            elapsed < std::time::Duration::from_millis(500),
+            "timeout took too long: {:?}",
+            elapsed
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_db_list_rejects_partial_args() {
+        use crate::transport::{Connection, MockConnection};
+
+        // 13 args is not a multiple of 14 → should error.
+        let mut data = vec![DlpFunction::ReadDBList as u8, 13, 0, 0];
+        for _ in 0..13 {
+            data.push(0x01); // tiny format, len = 1
+            data.push(0x00);
+        }
+
+        let mut mock = MockConnection::with_data(data);
+        mock.connect().unwrap();
+        let client = DlpClient::new(TransportConnection::Mock(mock));
+        let result = client.read_db_list(0, DlpDBListFlag::Ram, 0).await;
+        assert!(
+            result.is_err(),
+            "expected error for partial args (13), got {:?}",
+            result
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_db_list_rejects_malformed_arg() {
+        use crate::transport::{Connection, MockConnection};
+
+        // 14 args, but arg 12 (num_records, u16) is only 1 byte → parse should fail.
+        let mut data = vec![DlpFunction::ReadDBList as u8, 14, 0, 0];
+        for _ in 0..12 {
+            data.push(0x01);
+            data.push(0x00);
+        }
+        // arg 12: num_records expects u16 (2 bytes), give only 1
+        data.push(0x01);
+        data.push(0x00);
+        // arg 13: unique_id_seed expects u32 (4 bytes)
+        data.push(0x04);
+        data.extend_from_slice(&1u32.to_be_bytes());
+
+        let mut mock = MockConnection::with_data(data);
+        mock.connect().unwrap();
+        let client = DlpClient::new(TransportConnection::Mock(mock));
+        let result = client.read_db_list(0, DlpDBListFlag::Ram, 0).await;
+        assert!(
+            result.is_err(),
+            "expected error for malformed arg, got {:?}",
+            result
+        );
     }
 }

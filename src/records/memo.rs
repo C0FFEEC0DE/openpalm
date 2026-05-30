@@ -40,7 +40,7 @@ impl MemoRecord {
 
     /// Pack to record data (memo_v1 format)
     pub fn pack(&self) -> Vec<u8> {
-        let mut data = self.text.as_bytes().to_vec();
+        let mut data = crate::utils::encode_palm_string(&self.text);
         data.push(0);
         data
     }

@@ -289,7 +289,7 @@ impl HiNoteRecord {
     }
 
     fn pack_string(s: &str) -> Vec<u8> {
-        let mut bytes = s.as_bytes().to_vec();
+        let mut bytes = crate::utils::encode_palm_string(s);
         bytes.push(0);
         bytes
     }
