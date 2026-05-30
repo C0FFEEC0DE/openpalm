@@ -340,13 +340,30 @@ mod tests {
         record.entry[AddressEntry::LastName as usize] = Some("Doe".to_string());
         record.entry[AddressEntry::FirstName as usize] = Some("John".to_string());
         record.entry[AddressEntry::Email1 as usize] = Some("john@example.com".to_string());
-        
+
         let packed = record.pack();
         let unpacked = AddressRecord::unpack(&packed).unwrap();
-        
+
         assert_eq!(unpacked.get(AddressEntry::LastName), Some("Doe"));
         assert_eq!(unpacked.get(AddressEntry::FirstName), Some("John"));
         assert_eq!(unpacked.get(AddressEntry::Email1), Some("john@example.com"));
+    }
+
+    #[test]
+    fn test_address_phone_flags_roundtrip() {
+        let mut record = AddressRecord::new();
+        record.show_phone = 3;
+        record.phone_labels = [1, 2, 3, 4, 5];
+        record.entry[AddressEntry::LastName as usize] = Some("Smith".to_string());
+        record.entry[AddressEntry::Phone1 as usize] = Some("555-1234".to_string());
+
+        let packed = record.pack();
+        let unpacked = AddressRecord::unpack(&packed).unwrap();
+
+        assert_eq!(unpacked.show_phone, 3, "show_phone round-trip failed");
+        assert_eq!(unpacked.phone_labels, [1, 2, 3, 4, 5], "phone_labels round-trip failed");
+        assert_eq!(unpacked.get(AddressEntry::LastName), Some("Smith"));
+        assert_eq!(unpacked.get(AddressEntry::Phone1), Some("555-1234"));
     }
 
     #[test]

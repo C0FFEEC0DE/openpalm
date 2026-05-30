@@ -119,13 +119,13 @@ impl PalmDateTime {
             total_days += days_in_months[(m - 1) as usize] as i64;
         }
         
-        // Adjust February for leap year
-        if month == 2 && is_leap_year(year) {
+        // Adjust February for leap year (only if month > 2 means February has passed)
+        if month > 2 && is_leap_year(year) {
             total_days += 1;
         }
-        
+
         // Add days (Palm timestamp is 0-indexed, day parameter is 1-indexed)
-        total_days += day as i64;
+        total_days += (day - 1) as i64;
         
         // Convert to seconds (Palm timestamp is seconds since Palm epoch)
         self.0 = (total_days * 86400) as u32;
@@ -282,6 +282,33 @@ mod tests {
     fn test_days_in_month() {
         assert_eq!(days_in_month(2024, 2), 29);
         assert_eq!(days_in_month(2023, 2), 28);
+    }
+
+    #[test]
+    fn test_set_date_roundtrip() {
+        // Jan 1, 2024 should round-trip through set_date/get_date
+        let mut dt = PalmDateTime::undefined();
+        dt.set_date(2024, 1, 1);
+        let (y, m, d) = dt.get_date();
+        assert_eq!((y, m, d), (2024, 1, 1), "Jan 1 round-trip failed");
+
+        // Feb 29, 2024 (leap year)
+        let mut dt2 = PalmDateTime::undefined();
+        dt2.set_date(2024, 2, 29);
+        let (y2, m2, d2) = dt2.get_date();
+        assert_eq!((y2, m2, d2), (2024, 2, 29), "Feb 29 leap year round-trip failed");
+
+        // Mar 1, 2024 (day after leap day)
+        let mut dt3 = PalmDateTime::undefined();
+        dt3.set_date(2024, 3, 1);
+        let (y3, m3, d3) = dt3.get_date();
+        assert_eq!((y3, m3, d3), (2024, 3, 1), "Mar 1 after leap day round-trip failed");
+
+        // Dec 31, 2023 (non-leap year)
+        let mut dt4 = PalmDateTime::undefined();
+        dt4.set_date(2023, 12, 31);
+        let (y4, m4, d4) = dt4.get_date();
+        assert_eq!((y4, m4, d4), (2023, 12, 31), "Dec 31 round-trip failed");
     }
 
     #[test]

@@ -5,6 +5,20 @@
 
 use crate::error::{PilotError, Result};
 
+/// Decode Palm OS string bytes using CP1252 (Windows Western encoding).
+/// Palm OS devices typically store strings in CP1252, not UTF-8.
+/// Falls back to lossy UTF-8 for bytes that are not valid CP1252.
+pub fn decode_palm_string(bytes: &[u8]) -> String {
+    // CP1252 is a superset of ISO-8859-1 with additional characters in 0x80-0x9F
+    let (cow, _encoding_used, had_errors) = encoding_rs::WINDOWS_1252.decode(bytes);
+    if had_errors {
+        // Should not happen for CP1252 (it's a single-byte encoding for all 256 values)
+        String::from_utf8_lossy(bytes).to_string()
+    } else {
+        cow.to_string()
+    }
+}
+
 /// Parse a null-terminated string from byte data
 ///
 /// # Arguments
@@ -211,6 +225,19 @@ mod tests {
         let data = b"Hello\xC3\xA4\xC3\xB6\xC3\xBC\0"; // German umlauts
         let (s, _) = parse_pstring(data, 0).unwrap();
         assert_eq!(s, "Helloäöü");
+    }
+
+    #[test]
+    fn test_decode_palm_cp1252() {
+        // Euro sign € in CP1252 = 0x80
+        let bytes = b"\x80";
+        let s = decode_palm_string(bytes);
+        assert_eq!(s, "€");
+
+        // Smart quotes in CP1252
+        let bytes2 = b"\x91Hello\x92"; // ‘Hello’ (smart quotes)
+        let s2 = decode_palm_string(bytes2);
+        assert_eq!(s2, "\u{2018}Hello\u{2019}"); // U+2018/U+2019 left/right single quotation marks
     }
 
     #[test]
