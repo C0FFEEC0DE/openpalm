@@ -86,7 +86,7 @@ impl NotepadRecord {
         };
 
         let note_text = if text_len > 0 && offset + 1 + text_len <= data.len() {
-            String::from_utf8_lossy(&data[offset + 1..offset + 1 + text_len]).to_string()
+            crate::utils::decode_palm_string(&data[offset + 1..offset + 1 + text_len])
         } else {
             String::new()
         };
@@ -111,10 +111,11 @@ impl NotepadRecord {
         // Unique ID (truncated)
         data.extend_from_slice(&(self.id as u16).to_be_bytes());
 
-        // Note text
+        // Note text (Palm Notepad uses a single byte length, max 255)
         let text_bytes = self.note_text.as_bytes();
-        data.push(text_bytes.len() as u8);
-        data.extend_from_slice(text_bytes);
+        let truncated = &text_bytes[..std::cmp::min(text_bytes.len(), 255)];
+        data.push(truncated.len() as u8);
+        data.extend_from_slice(truncated);
 
         data
     }

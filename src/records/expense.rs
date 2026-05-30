@@ -211,10 +211,9 @@ impl ExpenseRecord {
         offset = new_offset;
 
         // Parse attendees list (remaining strings until double null)
-        let attendees = parse_string_list(data, offset, 20)?;
+        let (attendees, note_offset) = parse_string_list(data, offset, 20)?;
 
-        // Parse note (search for it after attendees)
-        let note_offset = offset + string_list_size(&attendees);
+        // Parse note (right after attendees list)
         let (note, _) = if note_offset < data.len() {
             parse_pstring(data, note_offset)?
         } else {

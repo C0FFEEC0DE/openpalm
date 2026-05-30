@@ -30,6 +30,7 @@ pub use strings::{
     parse_lpstring, pack_lpstring,
     parse_string_list, pack_string_list,
     pstring_size, string_list_size,
+    decode_palm_string,
 };
 
 use std::time::{Duration, SystemTime, UNIX_EPOCH};

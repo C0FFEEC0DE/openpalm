@@ -229,19 +229,19 @@ impl CalendarEvent {
         
         if has_description {
             let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.description = Some(String::from_utf8_lossy(&data[offset..offset + end]).to_string());
+            event.description = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
             offset += end + 1;
         }
         
         if has_note && offset < data.len() {
             let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.note = Some(String::from_utf8_lossy(&data[offset..offset + end]).to_string());
+            event.note = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
             offset += end + 1;
         }
         
         if has_location && offset < data.len() {
             let end = data[offset..].iter().position(|&b| b == 0).unwrap_or(data.len() - offset);
-            event.location = Some(String::from_utf8_lossy(&data[offset..offset + end]).to_string());
+            event.location = Some(crate::utils::decode_palm_string(&data[offset..offset + end]));
         }
         
         Ok(event)

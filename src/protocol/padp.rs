@@ -457,6 +457,7 @@ impl<S: Read + Write + Send> PadpConnection<S> {
                     if packet.flags.contains(PadpFlags::LAST) {
                         let len = std::cmp::min(buffer.len(), self.recv_buffer.len());
                         buffer[..len].copy_from_slice(&self.recv_buffer[..len]);
+                        self.recv_buffer.clear();
                         return Ok(len);
                     }
                 }
@@ -495,6 +496,37 @@ impl<S: Read + Write + Send> PadpConnection<S> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::{Cursor, Read, Write};
+
+    struct MockStream {
+        read_data: Cursor<Vec<u8>>,
+        write_data: Vec<u8>,
+    }
+
+    impl MockStream {
+        fn new(read_data: Vec<u8>) -> Self {
+            Self {
+                read_data: Cursor::new(read_data),
+                write_data: Vec::new(),
+            }
+        }
+    }
+
+    impl Read for MockStream {
+        fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+            self.read_data.read(buf)
+        }
+    }
+
+    impl Write for MockStream {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.write_data.extend_from_slice(buf);
+            Ok(buf.len())
+        }
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
 
     #[test]
     fn test_padp_type_from_u8() {
@@ -539,11 +571,42 @@ mod tests {
     }
 
     #[test]
+    fn test_recv_buffer_cleared_after_last() {
+        // Packet 1: FIRST + LAST, txid=1, data="hello"
+        let pkt1 = PadpPacket::new_data(
+            1,
+            PadpFlags::FIRST | PadpFlags::LAST,
+            5,
+            b"hello".to_vec(),
+        );
+
+        // Packet 2: LAST (no FIRST), txid=1, data="world"
+        // This simulates a stale trailing packet or retransmit.
+        let pkt2 = PadpPacket::new_data(
+            1,
+            PadpFlags::LAST,
+            5,
+            b"world".to_vec(),
+        );
+
+        let stream = MockStream::new([pkt1.encode(), pkt2.encode()].concat());
+        let mut padp = PadpConnection::new(stream);
+
+        let mut buf = [0u8; 10];
+        let n1 = padp.receive(&mut buf).unwrap();
+        assert_eq!(&buf[..n1], b"hello");
+
+        let n2 = padp.receive(&mut buf).unwrap();
+        // recv_buffer must have been cleared after LAST so we only see "world"
+        assert_eq!(&buf[..n2], b"world");
+    }
+
+    #[test]
     fn test_padp_flags() {
         let mut flags = PadpFlags::empty();
         flags.insert(PadpFlags::FIRST);
         flags.insert(PadpFlags::LAST);
-        
+
         assert!(flags.contains(PadpFlags::FIRST));
         assert!(flags.contains(PadpFlags::LAST));
         assert!(!flags.contains(PadpFlags::LONG));

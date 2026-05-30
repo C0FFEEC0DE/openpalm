@@ -82,6 +82,48 @@ fn build_error_response(function: DlpFunction, error: DlpErrorCode) -> Vec<u8> {
 }
 
 #[tokio::test]
+async fn test_error_response_trailing_data_consumed() {
+    let mut socket = PilotSocket::mock();
+
+    // Two error responses back-to-back; first has trailing argv bytes that must be consumed
+    let mut data = build_error_response(
+        DlpFunction::ReadSysInfo,
+        DlpErrorCode::NotFound,
+    );
+    data.extend_from_slice(&[0x01, 0x02, 0x03]); // trailing argv bytes
+    data.extend_from_slice(&build_error_response(
+        DlpFunction::ReadSysInfo,
+        DlpErrorCode::NotFound,
+    ));
+
+    if let Some(TransportConnection::Mock(mock)) = socket.transport_mut() {
+        mock.set_read_data(data);
+        mock.set_chunk_size(1); // force byte-by-byte reads so body does not over-read
+        mock.set_read_limit(7); // 4 header + 3 trailing — body read stops here
+    }
+
+    socket.connect().unwrap();
+
+    // First call: ReadSysInfo error
+    let err1 = socket.read_sys_info().await.unwrap_err();
+    assert!(matches!(err1, openpalm::PilotError::DlpError(5)));
+
+    // Allow second response to be read (must clear limit on the DlpClient's transport clone)
+    {
+        let client = socket.dlp().unwrap();
+        client.with_transport_mut(|conn| {
+            if let TransportConnection::Mock(mock) = conn {
+                mock.clear_read_limit();
+            }
+        });
+    }
+
+    // Second call: must also return NotFound (not DlpError(3) from stale trailing bytes)
+    let err2 = socket.read_sys_info().await.unwrap_err();
+    assert!(matches!(err2, openpalm::PilotError::DlpError(5)));
+}
+
+#[tokio::test]
 async fn test_mock_read_sys_info_error() {
     let mut socket = PilotSocket::mock();
 

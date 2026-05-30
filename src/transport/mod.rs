@@ -179,6 +179,11 @@ pub struct MockConnection {
     read_buffer: Vec<u8>,
     write_buffer: Vec<u8>,
     read_pos: usize,
+    /// Maximum bytes returned per read() call. Default = usize::MAX (all at once).
+    chunk_size: usize,
+    /// Optional hard limit on total bytes readable before returning Ok(0).
+    /// Simulates end-of-packet; call clear_read_limit() to allow further reads.
+    read_limit: Option<usize>,
 }
 
 impl MockConnection {
@@ -189,6 +194,8 @@ impl MockConnection {
             read_buffer: Vec::new(),
             write_buffer: Vec::new(),
             read_pos: 0,
+            chunk_size: usize::MAX,
+            read_limit: None,
         }
     }
 
@@ -199,6 +206,8 @@ impl MockConnection {
             read_buffer: data,
             write_buffer: Vec::new(),
             read_pos: 0,
+            chunk_size: usize::MAX,
+            read_limit: None,
         }
     }
 
@@ -216,6 +225,22 @@ impl MockConnection {
     /// Clear write buffer
     pub fn clear_write_buffer(&mut self) {
         self.write_buffer.clear();
+    }
+
+    /// Limit how many bytes are returned per read() call.
+    /// Useful for simulating partial reads / packet boundaries.
+    pub fn set_chunk_size(&mut self, chunk_size: usize) {
+        self.chunk_size = chunk_size;
+    }
+
+    /// Set a hard limit on total bytes readable before Ok(0) is returned.
+    pub fn set_read_limit(&mut self, limit: usize) {
+        self.read_limit = Some(limit);
+    }
+
+    /// Clear the read limit so all remaining data can be read.
+    pub fn clear_read_limit(&mut self) {
+        self.read_limit = None;
     }
 }
 
@@ -250,11 +275,13 @@ impl Read for MockConnection {
             ));
         }
 
-        if self.read_pos >= self.read_buffer.len() {
+        let effective_len = self.read_limit.unwrap_or(self.read_buffer.len());
+        if self.read_pos >= effective_len {
             return Ok(0);
         }
 
-        let len = std::cmp::min(buf.len(), self.read_buffer.len() - self.read_pos);
+        let max_len = std::cmp::min(buf.len(), self.chunk_size);
+        let len = std::cmp::min(max_len, effective_len - self.read_pos);
         buf[..len].copy_from_slice(&self.read_buffer[self.read_pos..self.read_pos + len]);
         self.read_pos += len;
         Ok(len)

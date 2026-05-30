@@ -773,6 +773,15 @@ impl DlpClient {
         Arc::clone(&self.transport)
     }
 
+    /// Access the underlying transport mutably via a callback.
+    pub fn with_transport_mut<F, R>(&self, f: F) -> R
+    where
+        F: FnOnce(&mut TransportConnection) -> R,
+    {
+        let mut guard = self.transport.lock().unwrap();
+        f(&mut *guard)
+    }
+
     /// Set the protocol version
     pub fn set_version(&mut self, version: ProtocolVersion) {
         self.version = version;
@@ -815,16 +824,10 @@ impl DlpClient {
             }
         }
 
-        // Quick check of error code before reading body
-        let error_code = header[2];
-        if error_code != 0 {
-            return Err(PilotError::DlpError(error_code as u16));
-        }
-
-        // Read remaining response body bytes
-        // DLP arguments are self-delimiting; read greedily with a reasonable limit
+        // Read remaining response body bytes (must consume all data from stream
+        // even on error, so the next request doesn't read stale trailing bytes)
         let mut body = Vec::new();
-        let max_body_size = 0x1000000usize; // 16MB limit (supports DLP 1.4 >64KB extended functions)
+        let max_body_size = 0x1000000usize; // 16MB limit
         let mut buf = [0u8; 1024];
         const MAX_WOULDBLOCK_RETRIES: u32 = 10_000;
         let mut wouldblock_count: u32 = 0;
@@ -843,12 +846,18 @@ impl DlpClient {
                     if wouldblock_count > MAX_WOULDBLOCK_RETRIES {
                         return Err(PilotError::SockTimeout);
                     }
-                    // Small yield to avoid CPU spinning on slow transports
-                    std::thread::sleep(std::time::Duration::from_micros(100));
+                    // Use std::thread::yield_now to yield without blocking the async runtime
+                    std::thread::yield_now();
                     continue;
                 }
                 Err(_) => return Err(PilotError::SockIo),
             }
+        }
+
+        // Check error code only after body is fully consumed
+        let error_code = header[2];
+        if error_code != 0 {
+            return Err(PilotError::DlpError(error_code as u16));
         }
 
         // Construct the buffer that DlpResponse::decode expects:

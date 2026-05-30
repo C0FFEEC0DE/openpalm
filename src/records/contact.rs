@@ -291,10 +291,16 @@ impl ContactRecord {
         offset = new_offset;
 
         // Parse phones
+        if offset >= data.len() {
+            return Err(PilotError::InvalidData("Contact record truncated at phone count".into()));
+        }
         let phone_count = data[offset] as usize;
         offset += 1;
-        
+
         for _ in 0..phone_count {
+            if offset >= data.len() {
+                return Err(PilotError::InvalidData("Contact record truncated at phone label".into()));
+            }
             let label = PhoneLabel::from_u8(data[offset]);
             offset += 1;
             let (number, new_offset) = Self::parse_string(data, offset)?;
@@ -307,9 +313,12 @@ impl ContactRecord {
         }
 
         // Parse emails
+        if offset >= data.len() {
+            return Err(PilotError::InvalidData("Contact record truncated at email count".into()));
+        }
         let email_count = data[offset] as usize;
         offset += 1;
-        
+
         for _ in 0..email_count {
             let (email, new_offset) = Self::parse_string(data, offset)?;
             record.emails.push(email);
@@ -317,6 +326,9 @@ impl ContactRecord {
         }
 
         // Parse addresses
+        if offset >= data.len() {
+            return Err(PilotError::InvalidData("Contact record truncated at address count".into()));
+        }
         let addr_count = data[offset] as usize;
         offset += 1;
         
@@ -399,7 +411,7 @@ impl ContactRecord {
         while end < data.len() && data[end] != 0 {
             end += 1;
         }
-        let s = String::from_utf8_lossy(&data[offset..end]).to_string();
+        let s = crate::utils::decode_palm_string(&data[offset..end]);
         Ok((s, end + 1))
     }
 
@@ -483,10 +495,24 @@ mod tests {
 
         let packed = record.pack();
         let parsed = ContactRecord::parse(&packed).unwrap();
-        
+
         assert_eq!(parsed.name.first, "Jane");
         assert_eq!(parsed.name.last, "Smith");
         assert_eq!(parsed.phones.len(), 1);
         assert_eq!(parsed.emails.len(), 1);
+    }
+
+    #[test]
+    fn test_contact_parse_short_data() {
+        // Data long enough to pass initial length check but missing phone/email/address data
+        let data = vec![
+            0x00, 0x00, 0x00, // first, last, company (all empty)
+            0x05, // phone_count = 5
+            0x00, 0x00, // phone 1
+            0x00, 0x00, // phone 2
+            0x00, 0x00, // phone 3
+        ];
+        let result = ContactRecord::parse(&data);
+        assert!(result.is_err());
     }
 }

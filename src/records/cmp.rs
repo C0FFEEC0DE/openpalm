@@ -317,7 +317,7 @@ impl CmpRecord {
         while end < data.len() && data[end] != 0 {
             end += 1;
         }
-        let s = String::from_utf8_lossy(&data[offset..end]).to_string();
+        let s = crate::utils::decode_palm_string(&data[offset..end]);
         Ok((s, end + 1))
     }
 

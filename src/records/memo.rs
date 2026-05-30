@@ -35,7 +35,7 @@ impl MemoRecord {
         
         // Memo is just a null-terminated string
         let end = data.iter().position(|&b| b == 0).unwrap_or(data.len());
-        let text = String::from_utf8_lossy(&data[..end]).to_string();
+        let text = crate::utils::decode_palm_string(&data[..end]);
         
         Ok(Self { text })
     }

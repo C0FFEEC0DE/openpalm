@@ -127,7 +127,7 @@ impl AddressRecord {
                     .unwrap_or(data.len());
                 
                 if offset < end {
-                    let s = String::from_utf8_lossy(&data[offset..end]).to_string();
+                    let s = crate::utils::decode_palm_string(&data[offset..end]);
                     record.entry[i] = Some(s);
                 }
                 

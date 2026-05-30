@@ -81,11 +81,11 @@ impl TodoRecord {
         
         if due_short != 0xFFFF {
             // Parse date from 16-bit Palm format
-            // Format: YYYYYYYMMMMMDDDDD where Y=year-4, M=month-1, D=day
-            let year = ((due_short >> 9) & 0x7F) as i32 + 4;
-            let month = ((due_short >> 5) & 0x0F) as i32;
+            // Format: YYYYYYYMMMMMDDDDD where Y=year-1904, M=month-1, D=day
+            let year = ((due_short >> 9) & 0x7F) as i32 + 1904;
+            let month = ((due_short >> 5) & 0x0F) as i32 + 1;
             let day = (due_short & 0x1F) as i32;
-            
+
             let mut dt = PalmDateTime::default();
             dt.set_date(year as u16, month as u8, day as u8);
             record.due = Some(dt);
@@ -112,7 +112,7 @@ impl TodoRecord {
             .map(|p| 3 + p)
             .unwrap_or(data.len());
         
-        record.description = String::from_utf8_lossy(&data[3..desc_end]).to_string();
+        record.description = crate::utils::decode_palm_string(&data[3..desc_end]);
         
         // Parse note (optional)
         let note_start = desc_end + 1;
@@ -124,7 +124,7 @@ impl TodoRecord {
                 .unwrap_or(data.len());
             
             if note_start < note_end {
-                record.note = Some(String::from_utf8_lossy(&data[note_start..note_end]).to_string());
+                record.note = Some(crate::utils::decode_palm_string(&data[note_start..note_end]));
             }
         }
         
@@ -141,9 +141,9 @@ impl TodoRecord {
             data.push(0xFF);
         } else if let Some(ref due) = self.due {
             let (year, month, day) = due.get_date();
-            // Format: YYYYYYYMMMMMDDDDD
-            let due_short = (((year - 4) & 0x7F) << 9) |
-                           (((month as u16 + 1) & 0x0F) << 5) |
+            // Format: YYYYYYYMMMMMDDDDD where Y=year-1904, M=month-1, D=day
+            let due_short = (((year - 1904) & 0x7F) << 9) |
+                           (((month as u16 - 1) & 0x0F) << 5) |
                            ((day as u16) & 0x1F);
             data.extend_from_slice(&due_short.to_be_bytes());
         } else {
@@ -290,6 +290,23 @@ mod tests {
         assert_eq!(unpacked.note, Some("Don't forget milk!".to_string()));
         assert_eq!(unpacked.priority.level(), 3);
         assert!(unpacked.complete);
+    }
+
+    #[test]
+    fn test_todo_due_date_roundtrip() {
+        let mut record = TodoRecord::new();
+        let mut dt = PalmDateTime::default();
+        dt.set_date(2025, 6, 15);
+        record.due = Some(dt);
+        record.indefinite = false;
+
+        let packed = record.pack();
+        let unpacked = TodoRecord::unpack(&packed).unwrap();
+
+        let (year, month, day) = unpacked.due.unwrap().get_date();
+        assert_eq!(year, 2025);
+        assert_eq!(month, 6);
+        assert_eq!(day, 15);
     }
 
     #[test]

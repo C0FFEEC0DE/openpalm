@@ -126,6 +126,27 @@ impl AlarmInfo {
             _ => self.minutes,
         }
     }
+
+    /// Pack to bytes (4 bytes: minutes[2] + unit[1] + sound_repeat[1])
+    pub fn pack(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity(4);
+        data.extend_from_slice(&self.minutes.to_be_bytes());
+        data.push(self.unit);
+        data.push(self.sound_repeat);
+        data
+    }
+
+    /// Parse from bytes
+    pub fn parse(data: &[u8]) -> Result<Self> {
+        if data.len() < 4 {
+            return Err(PilotError::InvalidData("AlarmInfo too short".into()));
+        }
+        Ok(Self {
+            minutes: u16::from_be_bytes([data[0], data[1]]),
+            unit: data[2],
+            sound_repeat: data[3],
+        })
+    }
 }
 
 /// Datebook application info
@@ -141,6 +162,50 @@ pub struct DatebookAppInfo {
     pub end_hour: u8,
     /// Version
     pub version: u16,
+}
+
+impl DatebookAppInfo {
+    /// Pack to bytes
+    pub fn pack(&self) -> Vec<u8> {
+        let mut data = Vec::with_capacity(261);
+        // 16 categories, 16 bytes each
+        for i in 0..16 {
+            let cat = self.categories.get(i).map(|s| s.as_str()).unwrap_or("");
+            let mut bytes = cat.as_bytes().to_vec();
+            bytes.resize(16, 0);
+            data.extend_from_slice(&bytes);
+        }
+        data.push(self.default_category);
+        data.push(self.start_hour);
+        data.push(self.end_hour);
+        data.extend_from_slice(&self.version.to_be_bytes());
+        data
+    }
+
+    /// Parse from bytes
+    pub fn parse(data: &[u8]) -> Result<Self> {
+        if data.len() < 261 {
+            return Err(PilotError::InvalidData("DatebookAppInfo too short".into()));
+        }
+        let mut categories = Vec::new();
+        for i in 0..16 {
+            let start = i * 16;
+            let end = start + 16;
+            let cat = crate::utils::decode_palm_string(&data[start..end])
+                .trim_end_matches('\0')
+                .to_string();
+            if !cat.is_empty() {
+                categories.push(cat);
+            }
+        }
+        Ok(Self {
+            categories,
+            default_category: data[256],
+            start_hour: data[257],
+            end_hour: data[258],
+            version: u16::from_be_bytes([data[259], data[260]]),
+        })
+    }
 }
 
 impl Default for DatebookAppInfo {
@@ -223,7 +288,7 @@ impl DatebookRecord {
         offset = new_offset;
 
         // Check for repeat info (if there's enough data)
-        if offset + 6 <= data.len() {
+        if offset + 8 <= data.len() {
             let repeat_type = match data[offset] {
                 1 => RepeatType::Daily,
                 2 => RepeatType::Weekly,
@@ -259,15 +324,8 @@ impl DatebookRecord {
         }
 
         // Check for alarm info
-        if offset + 2 <= data.len() {
-            let minutes = u16::from_be_bytes([data[offset], data[offset + 1]]);
-            if minutes > 0 {
-                record.alarm = Some(AlarmInfo {
-                    minutes,
-                    unit: 0,
-                    sound_repeat: 0,
-                });
-            }
+        if offset + 4 <= data.len() {
+            record.alarm = Some(AlarmInfo::parse(&data[offset..offset + 4])?);
         }
 
         Ok(record)
@@ -310,18 +368,21 @@ impl DatebookRecord {
 
         // Alarm info
         if let Some(alarm) = &self.alarm {
-            data.extend_from_slice(&alarm.minutes.to_be_bytes());
+            data.extend_from_slice(&alarm.pack());
         }
 
         data
     }
 
     fn parse_string(data: &[u8], offset: usize) -> Result<(String, usize)> {
+        if offset > data.len() {
+            return Err(PilotError::InvalidData("parse_string offset out of bounds".into()));
+        }
         let mut end = offset;
         while end < data.len() && data[end] != 0 {
             end += 1;
         }
-        let s = String::from_utf8_lossy(&data[offset..end]).to_string();
+        let s = crate::utils::decode_palm_string(&data[offset..end]);
         Ok((s, end + 1))
     }
 
@@ -409,6 +470,42 @@ mod tests {
     }
 
     #[test]
+    fn test_alarm_info_pack_parse() {
+        let alarm = AlarmInfo {
+            minutes: 30,
+            unit: 1,
+            sound_repeat: 2,
+        };
+        let packed = alarm.pack();
+        assert_eq!(packed.len(), 4);
+        let parsed = AlarmInfo::parse(&packed).unwrap();
+        assert_eq!(parsed.minutes, 30);
+        assert_eq!(parsed.unit, 1);
+        assert_eq!(parsed.sound_repeat, 2);
+    }
+
+    #[test]
+    fn test_datebook_app_info_pack_parse() {
+        let info = DatebookAppInfo {
+            categories: vec!["Work".to_string(), "Home".to_string()],
+            default_category: 1,
+            start_hour: 8,
+            end_hour: 18,
+            version: 2,
+        };
+        let packed = info.pack();
+        assert_eq!(packed.len(), 261);
+        let parsed = DatebookAppInfo::parse(&packed).unwrap();
+        assert_eq!(parsed.categories.len(), 2);
+        assert_eq!(parsed.categories[0], "Work");
+        assert_eq!(parsed.categories[1], "Home");
+        assert_eq!(parsed.default_category, 1);
+        assert_eq!(parsed.start_hour, 8);
+        assert_eq!(parsed.end_hour, 18);
+        assert_eq!(parsed.version, 2);
+    }
+
+    #[test]
     fn test_format_time() {
         assert_eq!(DatebookRecord::format_time(0), "12:00 AM");
         assert_eq!(DatebookRecord::format_time(720), "12:00 PM");
@@ -436,8 +533,57 @@ mod tests {
     fn test_is_all_day() {
         let mut record = DatebookRecord::default();
         assert!(!record.is_all_day());
-        
+
         record.event_type = EventType::AllDay;
         assert!(record.is_all_day());
+    }
+
+    #[test]
+    fn test_unpack_repeat_bounds() {
+        // Minimal record with description + note but only 6 extra bytes for repeat
+        // (should not read past end)
+        let mut data = vec![
+            // start_time, end_time, date, flags, alarm, duration
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ];
+        data.extend_from_slice(b"desc\0");
+        data.extend_from_slice(b"note\0");
+        // repeat_type=1, frequency=1, dow=0, dom=1  => 4 bytes
+        data.push(1); // Daily
+        data.push(1); // frequency
+        data.push(0); // day_of_week
+        data.push(1); // day_of_month
+        // Only 2 bytes of end_date (need 4)
+        data.push(0);
+        data.push(0);
+
+        // Should not panic — repeat should be skipped or handled gracefully
+        let result = DatebookRecord::parse(&data);
+        // Currently this will likely fail with an error; we just want no panic
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_unpack_parse_string_bounds() {
+        // Description without null terminator at end of buffer
+        let mut data = vec![
+            // start_time, end_time, date, flags, alarm, duration
+            0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+            0x00, 0x00, 0x00, 0x00,
+        ];
+        data.extend_from_slice(b"no-null"); // no trailing zero
+
+        // Should not panic
+        let result = DatebookRecord::parse(&data);
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_parse_string_offset_beyond_len() {
+        let data = b"hello";
+        // parse_string at offset > len must return an error, not panic
+        let result = DatebookRecord::parse_string(data, 6);
+        assert!(result.is_err());
     }
 }

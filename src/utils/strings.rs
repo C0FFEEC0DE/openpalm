@@ -105,21 +105,21 @@ pub fn pack_lpstring(s: &str) -> Vec<u8> {
 ///
 /// # Returns
 /// * `Ok(Vec<String>)` - The parsed strings
-pub fn parse_string_list(data: &[u8], offset: usize, max_count: usize) -> Result<Vec<String>> {
+pub fn parse_string_list(data: &[u8], offset: usize, max_count: usize) -> Result<(Vec<String>, usize)> {
     let mut strings = Vec::new();
     let mut current_offset = offset;
-    
+
     for _ in 0..max_count {
         if current_offset >= data.len() {
             break;
         }
-        
+
         // Check for end marker (empty string at end) or double null
         if data[current_offset] == 0 {
             current_offset += 1;
             break;
         }
-        
+
         let (s, new_offset) = parse_pstring(data, current_offset)?;
         if s.is_empty() {
             break;
@@ -127,8 +127,8 @@ pub fn parse_string_list(data: &[u8], offset: usize, max_count: usize) -> Result
         strings.push(s);
         current_offset = new_offset;
     }
-    
-    Ok(strings)
+
+    Ok((strings, current_offset))
 }
 
 /// Pack multiple strings as null-terminated list (double-null terminated)
@@ -196,11 +196,12 @@ mod tests {
     #[test]
     fn test_parse_string_list() {
         let data = b"Alice\0Bob\0Charlie\0";
-        let strings = parse_string_list(data, 0, 10).unwrap();
+        let (strings, offset) = parse_string_list(data, 0, 10).unwrap();
         assert_eq!(strings.len(), 3);
         assert_eq!(strings[0], "Alice");
         assert_eq!(strings[1], "Bob");
         assert_eq!(strings[2], "Charlie");
+        assert_eq!(offset, 18);
     }
 
     #[test]
