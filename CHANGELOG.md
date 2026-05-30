@@ -61,13 +61,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/protocol/dlp.rs` — `DlpClient::with_transport_mut` and `send_request` now propagate `SyncPoisoned` instead of panicking on poisoned `Mutex`
 - `src/records/*.rs` — All `pack()` / `pack_string()` methods now use `encode_palm_string()` (UTF-8 → CP1252) to prevent corruption of non-ASCII characters on Palm OS
 - `.github/workflows/ci.yml` — Upgraded `actions/checkout@v4` → `v5` and `actions/cache@v4` → `v5` (Node.js 20 deprecation warnings)
-- `src/transport/net.rs` — Fixed `NetConnection::read`/`write` violating `Read`/`Write` contract (was looping until full buffer, now returns after single partial transfer as standard requires)
-- `src/transport/net.rs` — Fixed `NetConnection::write` partial progress loss on `Ok(0)`
+- `src/transport/net.rs` — Fixed `InetConnection::read`/`write` violating `Read`/`Write` contract (was looping until full buffer, now returns after single partial transfer)
+- `src/transport/net.rs` — Fixed `InetConnection::write` partial progress loss on `Ok(0)`
+- `src/cli/db.rs` — Fixed `socket.dlp().unwrap()` panic risk (now `ok_or(DlpSocket)?`)
+- `src/cli/mod.rs` — Fixed missing `#[cfg(feature = "usb")]` gate on USB fallback in `connect()`
+- `src/cli/db.rs` — Fixed silent validation failure (returns `Err(InvalidArgument)` instead of `Ok(())`)
+- `src/error.rs` — Changed `PilotError::FileError` from unit variant to `FileError(String)` preserving OS error context
+- `src/cli/datetime.rs` — Fixed clock skew silent fallback (`unwrap_or_default()` → explicit error)
+- `src/database.rs` — Fixed `DatabaseHeader.num_records` u16 truncation (changed to u32)
 
 ### Changed
 - `Cargo.toml` — Restored `[features]` with `serial`/`usb` feature flags, deps made optional
-
+- `Cargo.toml` — Added `clap` (derive), `serde_json`, `net` feature, `[[bin]] palm`
 - `src/transport/net.rs` — Added `InetConnection` (TCP/IP transport for Palm HotSync): client/server modes, statistics (`rx_bytes`/`tx_bytes`/`rx_errors`/`tx_errors`), `drain_input()` (non-blocking drain), `InetState` enum
+- `src/transport/net.rs` — `NetConnection`/`NetState` renamed to `InetConnection`/`InetState` to avoid collision with `protocol::net`
+- `src/transport/mod.rs` — Renamed `Connection::flush` to `drain_input` to avoid `Write::flush` semantic collision
 - `src/protocol/socket.rs` — Added `PilotSocket::net()` (client) and `net_listen()`/`accept()` (server) for TCP/IP HotSync
 - `src/main.rs` — Full CLI with `clap` derive: `--port`, `--host`, subcommands `info`, `db` (list/info/dump/create/delete/export), `record`, `resource`, `sync`, `vfs`, `datetime`, `server`
 - `src/cli/mod.rs` — Shared CLI helpers: `connect()` (auto-detects serial/network/USB), `print_table()` (aligned output)
@@ -80,21 +88,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `src/cli/vfs.rs` — VFS volumes
 - `src/cli/mod.rs` — Added `with_connection()` RAII helper ensuring disconnect always runs
 - `src/cli/mod.rs` — Added 3 unit tests for `print_table()`
-
-### Fixed
-- `src/transport/net.rs` — Fixed `InetConnection::read`/`write` violating `Read`/`Write` contract (was looping until full buffer, now returns after single partial transfer)
-- `src/transport/net.rs` — Fixed `InetConnection::write` partial progress loss on `Ok(0)`
-- `src/transport/mod.rs` — Renamed `Connection::flush` to `drain_input` to avoid `Write::flush` semantic collision
-- `src/cli/db.rs` — Fixed `socket.dlp().unwrap()` panic risk (now `ok_or(DlpSocket)?`)
-- `src/cli/mod.rs` — Fixed missing `#[cfg(feature = "usb")]` gate on USB fallback in `connect()`
-- `src/cli/db.rs` — Fixed silent validation failure (returns `Err(InvalidArgument)` instead of `Ok(())`)
-- `src/error.rs` — Changed `PilotError::FileError` from unit variant to `FileError(String)` preserving OS error context
-- `src/cli/datetime.rs` — Fixed clock skew silent fallback (`unwrap_or_default()` → explicit error)
-- `src/database.rs` — Fixed `DatabaseHeader.num_records` u16 truncation (changed to u32)
-
-### Changed
-- `src/transport/net.rs` — `NetConnection`/`NetState` renamed to `InetConnection`/`InetState` to avoid collision with `protocol::net`
-- `Cargo.toml` — Added `clap` (derive), `serde_json`, `net` feature, `[[bin]] palm`
 
 ### Architecture
 - Transport ownership: `TransportConnection` no longer requires `Clone`. Moved via `Option::take()` from `PilotSocket` into `DlpClient::new()`.
